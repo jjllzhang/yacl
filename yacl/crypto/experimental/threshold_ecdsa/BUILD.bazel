@@ -73,6 +73,7 @@ yacl_cc_library(
     copts = TECDSA_COPTS,
     deps = TSIG_COMMON_DEPS + [
         "//yacl/base:exception",
+        "//yacl/crypto/hash:hash_utils",
     ],
 )
 
@@ -80,6 +81,20 @@ yacl_cc_library(
     name = "tsig_ecdsa",
     srcs = TSIG_ECDSA_SRCS,
     hdrs = TSIG_ECDSA_HDRS,
+    copts = TECDSA_COPTS,
+    deps = [
+        ":tsig_core",
+    ],
+)
+
+yacl_cc_library(
+    name = "tsig_sm2",
+    srcs = glob([
+        "sm2/**/*.cc",
+    ]),
+    hdrs = glob([
+        "sm2/**/*.h",
+    ]),
     copts = TECDSA_COPTS,
     deps = [
         ":tsig_core",
@@ -124,4 +139,29 @@ yacl_cc_binary(
     ],
     copts = TECDSA_COPTS,
     deps = [":tecdsa_core"],
+)
+
+yacl_cc_binary(
+    name = "sm2_keygen_flow_tests",
+    srcs = [
+        "tests/sm2/keygen_flow_test.cc",
+        "tests/sm2/test_support.cc",
+        "tests/sm2/test_support.h",
+    ],
+    copts = TECDSA_COPTS,
+    deps = [":tsig_sm2"],
+)
+
+yacl_cc_binary(
+    name = "sm2_sign_flow_tests",
+    srcs = [
+        "tests/sm2/sign_flow_test.cc",
+        "tests/sm2/offline_presign_test.cc",
+        "tests/sm2/online_sign_test.cc",
+        "tests/sm2/tamper_cases_test.cc",
+        "tests/sm2/test_support.cc",
+        "tests/sm2/test_support.h",
+    ],
+    copts = TECDSA_COPTS,
+    deps = [":tsig_sm2"],
 )

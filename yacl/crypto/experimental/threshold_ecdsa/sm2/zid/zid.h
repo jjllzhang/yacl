@@ -17,15 +17,19 @@
 #include <span>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 
-namespace tecdsa {
+namespace tecdsa::sm2::zid {
 
-using core::HashId;
+struct IdentityBinding {
+  Bytes signer_id;
+  Bytes zid;
+};
 
-Bytes Hash(HashId hash_id, std::span<const uint8_t> data);
-Bytes Sha256(std::span<const uint8_t> data);
-Bytes Sha512(std::span<const uint8_t> data);
-Bytes Sm3(std::span<const uint8_t> data);
+Bytes ComputeZid(std::span<const uint8_t> signer_id, const ECPoint& public_key);
+IdentityBinding BindIdentity(std::span<const uint8_t> signer_id,
+                             const ECPoint& public_key);
+Bytes PreprocessMessageDigest(const IdentityBinding& binding,
+                              std::span<const uint8_t> message);
 
-}  // namespace tecdsa
+}  // namespace tecdsa::sm2::zid

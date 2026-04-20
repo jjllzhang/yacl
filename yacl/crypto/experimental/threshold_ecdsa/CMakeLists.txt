@@ -81,6 +81,14 @@ set(TSIG_ECDSA_SRCS
   protocol/sign.cc
 )
 
+set(TSIG_SM2_SRCS
+  sm2/zid/zid.cc
+  sm2/keygen/keygen.cc
+  sm2/presign/offline.cc
+  sm2/sign/online.cc
+  sm2/verify/verify.cc
+)
+
 add_library(tsig_core ${TSIG_CORE_SRCS})
 
 target_include_directories(tsig_core PUBLIC
@@ -105,6 +113,15 @@ target_include_directories(tsig_ecdsa PUBLIC
 )
 target_link_libraries(tsig_ecdsa PUBLIC tsig_core)
 
+add_library(tsig_sm2 ${TSIG_SM2_SRCS})
+target_include_directories(tsig_sm2 PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../../
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${ABSL_INCLUDE_DIR}
+  ${LIBTOMMATH_INCLUDE_DIR}
+)
+target_link_libraries(tsig_sm2 PUBLIC tsig_core)
+
 # Preserve legacy consumer names while switching the canonical target graph.
 add_library(tecdsa_core ALIAS tsig_ecdsa)
 add_library(tecdsa_m0 ALIAS tsig_ecdsa)
@@ -125,7 +142,24 @@ add_executable(sign_flow_tests
 )
 target_link_libraries(sign_flow_tests PRIVATE tsig_ecdsa)
 
+add_executable(sm2_keygen_flow_tests
+  tests/sm2/keygen_flow_test.cc
+  tests/sm2/test_support.cc
+)
+target_link_libraries(sm2_keygen_flow_tests PRIVATE tsig_sm2)
+
+add_executable(sm2_sign_flow_tests
+  tests/sm2/sign_flow_test.cc
+  tests/sm2/offline_presign_test.cc
+  tests/sm2/online_sign_test.cc
+  tests/sm2/tamper_cases_test.cc
+  tests/sm2/test_support.cc
+)
+target_link_libraries(sm2_sign_flow_tests PRIVATE tsig_sm2)
+
 enable_testing()
 add_test(NAME crypto_primitives_tests COMMAND crypto_primitives_tests)
 add_test(NAME keygen_flow_tests COMMAND keygen_flow_tests)
 add_test(NAME sign_flow_tests COMMAND sign_flow_tests)
+add_test(NAME sm2_keygen_flow_tests COMMAND sm2_keygen_flow_tests)
+add_test(NAME sm2_sign_flow_tests COMMAND sm2_sign_flow_tests)

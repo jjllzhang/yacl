@@ -16,16 +16,21 @@
 
 #include <span>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/zid/zid.h"
 
-namespace tecdsa {
+namespace tecdsa::sm2::verify {
 
-using core::HashId;
+struct Signature {
+  Scalar r;
+  Scalar s;
+  ECPoint R;
+};
 
-Bytes Hash(HashId hash_id, std::span<const uint8_t> data);
-Bytes Sha256(std::span<const uint8_t> data);
-Bytes Sha512(std::span<const uint8_t> data);
-Bytes Sm3(std::span<const uint8_t> data);
+bool VerifySm2SignatureMath(const ECPoint& public_key,
+                            const zid::IdentityBinding& binding,
+                            std::span<const uint8_t> message,
+                            const Signature& signature);
 
-}  // namespace tecdsa
+}  // namespace tecdsa::sm2::verify

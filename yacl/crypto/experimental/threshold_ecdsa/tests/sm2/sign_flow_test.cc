@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
+#include <iostream>
 
-#include <span>
+namespace tecdsa::sm2::testcases {
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
+void RunOfflinePresignTests();
+void RunOnlineSignTests();
+void RunTamperCaseTests();
 
-namespace tecdsa {
+}  // namespace tecdsa::sm2::testcases
 
-using core::HashId;
-
-Bytes Hash(HashId hash_id, std::span<const uint8_t> data);
-Bytes Sha256(std::span<const uint8_t> data);
-Bytes Sha512(std::span<const uint8_t> data);
-Bytes Sm3(std::span<const uint8_t> data);
-
-}  // namespace tecdsa
+int main() {
+  tecdsa::sm2::testcases::RunOfflinePresignTests();
+  tecdsa::sm2::testcases::RunOnlineSignTests();
+  tecdsa::sm2::testcases::RunTamperCaseTests();
+  std::cout << "sm2_sign_flow_tests passed" << std::endl;
+  return 0;
+}

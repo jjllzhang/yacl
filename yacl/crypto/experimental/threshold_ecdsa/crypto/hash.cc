@@ -19,6 +19,7 @@
 #include <array>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
+#include "yacl/crypto/hash/hash_utils.h"
 
 namespace tecdsa::core {
 
@@ -53,9 +54,11 @@ Bytes Hash(HashId hash_id, std::span<const uint8_t> data) {
       }
       return Bytes(digest.begin(), digest.end());
     }
-    case HashId::kSm3:
-      TECDSA_THROW_ARGUMENT(
-          "SM3 hash is not wired into threshold_ecdsa stage-1 yet");
+    case HashId::kSm3: {
+      const auto digest =
+          yacl::crypto::Sm3(yacl::ByteContainerView(data.data(), data.size()));
+      return Bytes(digest.begin(), digest.end());
+    }
   }
 
   TECDSA_THROW_ARGUMENT("Unsupported hash id");
@@ -75,6 +78,10 @@ Bytes Sha256(std::span<const uint8_t> data) {
 
 Bytes Sha512(std::span<const uint8_t> data) {
   return core::Hash(HashId::kSha512, data);
+}
+
+Bytes Sm3(std::span<const uint8_t> data) {
+  return core::Hash(HashId::kSm3, data);
 }
 
 }  // namespace tecdsa

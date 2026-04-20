@@ -24,6 +24,11 @@
 namespace tecdsa::core::mta {
 namespace {
 
+std::shared_ptr<const GroupContext> ResolveGroup(
+    std::shared_ptr<const GroupContext> group) {
+  return group == nullptr ? DefaultGroupContext() : std::move(group);
+}
+
 void ValidateMtAwcSecretPointOrThrow(
     const Scalar& responder_secret,
     const std::optional<ECPoint>& public_witness_point) {
@@ -81,7 +86,9 @@ size_t ExpectedPairwiseProductMessageCount(size_t peer_count) {
 }
 
 PairwiseProductSession::PairwiseProductSession(Config cfg)
-    : cfg_(std::move(cfg)) {}
+    : cfg_(std::move(cfg)) {
+  cfg_.group = ResolveGroup(std::move(cfg_.group));
+}
 
 const PairwiseProductSession::Config& PairwiseProductSession::config() const {
   return cfg_;
@@ -243,7 +250,7 @@ PairwiseProductSession::ConsumeRequest(const PairwiseProductRequest& request,
   consumed_request_keys_.insert(instance_key);
   return ConsumeRequestResult{
       .response = std::move(response),
-      .responder_share = Scalar(-y),
+      .responder_share = Scalar(-y, cfg_.group),
   };
 }
 
@@ -312,7 +319,7 @@ PairwiseProductSession::ConsumeResponse(const PairwiseProductResponse& response,
   }
 
   const Scalar initiator_share(
-      args.initiator_paillier->DecryptBigInt(response.c2));
+      args.initiator_paillier->DecryptBigInt(response.c2), cfg_.group);
   pending_initiator_instances_.erase(instance_it);
   return ConsumeResponseResult{.initiator_share = initiator_share};
 }

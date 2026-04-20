@@ -23,19 +23,33 @@ namespace tecdsa::core {
 namespace {
 
 using yacl::crypto::EcGroupFactory;
+using yacl::crypto::PointOctetFormat;
 
-std::shared_ptr<const GroupContext> CreateSecp256k1Context() {
+std::shared_ptr<const GroupContext> CreateContext(CurveId curve_id,
+                                                  const char* curve_name) {
   auto group =
-      EcGroupFactory::Instance().Create("secp256k1", yacl::ArgLib = "openssl");
+      EcGroupFactory::Instance().Create(curve_name, yacl::ArgLib = "openssl");
   if (group == nullptr) {
-    TECDSA_THROW("Failed to create secp256k1 curve via yacl openssl backend");
+    TECDSA_THROW(std::string("Failed to create ") + curve_name +
+                 " curve via yacl openssl backend");
   }
 
+  GroupContext::BigInt order = group->GetOrder();
+  const size_t scalar_size_bytes = (order.BitCount() + 7) / 8;
+  const size_t compressed_point_size_bytes =
+      group->GetSerializeLength(PointOctetFormat::X962Compressed);
+
   return std::shared_ptr<const GroupContext>(new GroupContext(
-      CurveId::kSecp256k1, "secp256k1",
-      GroupContext::BigInt(
-          "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"),
-      32, 33, std::move(group)));
+      curve_id, curve_name, std::move(order), scalar_size_bytes,
+      compressed_point_size_bytes, std::move(group)));
+}
+
+std::shared_ptr<const GroupContext> CreateSecp256k1Context() {
+  return CreateContext(CurveId::kSecp256k1, "secp256k1");
+}
+
+std::shared_ptr<const GroupContext> CreateSm2P256V1Context() {
+  return CreateContext(CurveId::kSm2P256V1, "sm2");
 }
 
 }  // namespace
@@ -58,9 +72,11 @@ std::shared_ptr<const GroupContext> GroupContext::Create(CurveId curve_id) {
           CreateSecp256k1Context();
       return kSecp256k1;
     }
-    case CurveId::kSm2P256V1:
-      TECDSA_THROW_ARGUMENT(
-          "SM2 group context is not wired into threshold_ecdsa stage-1 yet");
+    case CurveId::kSm2P256V1: {
+      static const std::shared_ptr<const GroupContext> kSm2P256V1 =
+          CreateSm2P256V1Context();
+      return kSm2P256V1;
+    }
   }
 
   TECDSA_THROW_ARGUMENT("Unsupported curve id");

@@ -1,7 +1,7 @@
 # threshold_ecdsa
 
-Research artifact for a C++20 prototype implementation of the GG2019 threshold
-ECDSA protocol.
+Research artifact for a C++20 prototype implementation of threshold ECDSA and
+threshold SM2 protocol building blocks.
 
 ## Paper Reference
 
@@ -29,6 +29,8 @@ It is not a production-ready wallet or signing service.
   (`tecdsa::proto::KeygenParty`, 3 rounds).
 - Round-driven threshold signing (`tecdsa::proto::SignParty`, `Phase1` through
   `Phase5E`).
+- SM2-specific `ZID` preprocessing, threshold keygen, offline presign, online
+  signing, and math verification.
 - Fixed prototype proof validation for square-free and auxiliary-parameter
   artifacts.
 
@@ -44,6 +46,7 @@ core/          # stage-1 suite/algebra groundwork for shared threshold-signature
 common/        # bytes/error helpers
 crypto/        # compatibility wrappers plus shared Paillier/hash/encoding/transcript/proof helpers
 ecdsa/         # ECDSA-specific keygen/sign/verify orchestration
+sm2/           # SM2-specific zid/keygen/offline/online/verify orchestration
 protocol/      # legacy proto namespace shims kept for compatibility
 tests/
   crypto_primitives_test.cc
@@ -52,6 +55,14 @@ tests/
   sign_flow_test_cases.cc
   sign_flow_test_shared.h
   sign_flow_test_support.cc
+  sm2/
+    keygen_flow_test.cc
+    offline_presign_test.cc
+    online_sign_test.cc
+    sign_flow_test.cc
+    tamper_cases_test.cc
+    test_support.cc
+    test_support.h
 ```
 
 ## Reproducibility
@@ -72,7 +83,7 @@ toolchain.
 
 ```bash
 cmake -S yacl/crypto/experimental/threshold_ecdsa -B /tmp/tecdsa-cmake
-cmake --build /tmp/tecdsa-cmake --target tsig_core tsig_ecdsa -j
+cmake --build /tmp/tecdsa-cmake --target tsig_core tsig_ecdsa tsig_sm2 -j
 ```
 
 Canonical CMake targets:
@@ -81,13 +92,14 @@ Canonical CMake targets:
   compatibility facades in `crypto/`).
 - `tsig_ecdsa`: ECDSA scheme layer plus legacy `protocol/` shims; links
   `tsig_core`.
+- `tsig_sm2`: SM2 scheme layer (`sm2/`); links `tsig_core`.
 - `tecdsa_core`: compatibility alias to `tsig_ecdsa`.
 - `tecdsa_m0`: legacy compatibility alias retained as an alias to
   `tsig_ecdsa`.
 
 ### Bazel
 
-Canonical stage-7 naming is `:tsig_core` and `:tsig_ecdsa`, with
+Canonical stage-8 naming is `:tsig_core`, `:tsig_ecdsa`, and `:tsig_sm2`, with
 `:tecdsa_core` kept as the compatibility name and `:tecdsa_m0` retained as the
 legacy alias.
 
@@ -95,11 +107,14 @@ legacy alias.
 bazelisk --output_user_root=/tmp/bazel_zjl query //yacl/crypto/experimental/threshold_ecdsa:all
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tsig_core
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tsig_ecdsa
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tsig_sm2
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_core
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_m0
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:crypto_primitives_tests
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:keygen_flow_tests
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:sign_flow_tests
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:sm2_keygen_flow_tests
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:sm2_sign_flow_tests
 ```
 
 If your environment resolves `rules_foreign_cc` to `built_make` and fails on
@@ -124,6 +139,8 @@ Run individual CMake executables:
 /tmp/tecdsa-cmake/crypto_primitives_tests
 /tmp/tecdsa-cmake/keygen_flow_tests
 /tmp/tecdsa-cmake/sign_flow_tests
+/tmp/tecdsa-cmake/sm2_keygen_flow_tests
+/tmp/tecdsa-cmake/sm2_sign_flow_tests
 ```
 
 Run Bazel test binaries. These are `yacl_cc_binary` targets, not `cc_test` rules:
@@ -132,6 +149,8 @@ Run Bazel test binaries. These are `yacl_cc_binary` targets, not `cc_test` rules
 bazelisk --output_user_root=/tmp/bazel_zjl run //yacl/crypto/experimental/threshold_ecdsa:crypto_primitives_tests
 bazelisk --output_user_root=/tmp/bazel_zjl run //yacl/crypto/experimental/threshold_ecdsa:keygen_flow_tests
 bazelisk --output_user_root=/tmp/bazel_zjl run //yacl/crypto/experimental/threshold_ecdsa:sign_flow_tests
+bazelisk --output_user_root=/tmp/bazel_zjl run //yacl/crypto/experimental/threshold_ecdsa:sm2_keygen_flow_tests
+bazelisk --output_user_root=/tmp/bazel_zjl run //yacl/crypto/experimental/threshold_ecdsa:sm2_sign_flow_tests
 ```
 
 Migration sanity check (should be zero hits in code files):
@@ -147,6 +166,8 @@ rg -n "#include <gmpxx.h>|\bmpz_class\b|\bmpz_" yacl/crypto/experimental/thresho
   tampering.
 - `sign_flow_tests`: end-to-end signing, proof checks, and adversarial failure
   paths.
+- `sm2_keygen_flow_tests`: end-to-end SM2 keygen and `ZID` consistency.
+- `sm2_sign_flow_tests`: SM2 offline presign, online sign, and tamper checks.
 
 ## Error Handling Style
 

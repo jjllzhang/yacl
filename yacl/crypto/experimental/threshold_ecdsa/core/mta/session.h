@@ -17,10 +17,12 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
@@ -44,6 +46,7 @@ class PairwiseProductSession {
   struct Config {
     Bytes session_id;
     PartyIndex self_id = 0;
+    std::shared_ptr<const GroupContext> group = DefaultGroupContext();
   };
 
   struct CreateRequestArgs {
