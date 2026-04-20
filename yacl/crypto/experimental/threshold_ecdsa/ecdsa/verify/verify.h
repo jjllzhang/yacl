@@ -14,12 +14,18 @@
 
 #pragma once
 
-#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
+#include <cstdint>
+#include <span>
 
-namespace tecdsa::proto {
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
-using SignConfig = tecdsa::ecdsa::sign::SignConfig;
-using SignParty = tecdsa::ecdsa::sign::SignParty;
+namespace tecdsa::ecdsa::verify {
 
-}  // namespace tecdsa::proto
+// Verify secp256k1 ECDSA by the standard equation:
+//   R' = (m * s^-1)G + (r * s^-1)Y, accept iff r == x(R') mod q.
+bool VerifyEcdsaSignatureMath(const ECPoint& public_key,
+                              std::span<const uint8_t> msg32, const Scalar& r,
+                              const Scalar& s);
+
+}  // namespace tecdsa::ecdsa::verify

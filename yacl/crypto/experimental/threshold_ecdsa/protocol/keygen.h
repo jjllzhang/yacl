@@ -15,6 +15,7 @@
 #pragma once
 
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/keygen.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
 
 namespace tecdsa::proto {
 

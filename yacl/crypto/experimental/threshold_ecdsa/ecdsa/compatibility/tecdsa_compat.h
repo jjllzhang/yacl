@@ -14,12 +14,16 @@
 
 #pragma once
 
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/keygen.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
 
-namespace tecdsa::proto {
+namespace tecdsa::ecdsa::compatibility {
 
+using KeygenConfig = tecdsa::ecdsa::keygen::KeygenConfig;
+using KeygenParty = tecdsa::ecdsa::keygen::KeygenParty;
 using SignConfig = tecdsa::ecdsa::sign::SignConfig;
 using SignParty = tecdsa::ecdsa::sign::SignParty;
+using Signature = tecdsa::proto::Signature;
 
-}  // namespace tecdsa::proto
+}  // namespace tecdsa::ecdsa::compatibility

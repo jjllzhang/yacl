@@ -14,6 +14,11 @@
 
 #include "sign_flow_test_shared.h"
 
+#include <span>
+#include <type_traits>
+
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ecdsa_verify.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
 
@@ -149,6 +154,38 @@ void TestStage6SignConstructorRejectsInvalidKeygenProofArtifacts() {
   bad_aux_cfg.public_keygen_data.all_aux_param_proofs.at(2).blob.back() ^= 0x01;
   ExpectThrow([&]() { (void)SignParty(std::move(bad_aux_cfg)); },
               "SignParty must reject invalid aux keygen proof");
+}
+
+void TestStage6ProtocolSignCompatibilityAlias() {
+  static_assert(std::is_same_v<tecdsa::proto::SignConfig,
+                               tecdsa::ecdsa::sign::SignConfig>);
+  static_assert(std::is_same_v<tecdsa::proto::SignParty,
+                               tecdsa::ecdsa::sign::SignParty>);
+
+  const auto keygen_results =
+      RunKeygenAndCollectResults(/*n=*/3, /*t=*/1, Bytes{0xD8, 0x03, 0x01});
+  const std::vector<PartyIndex> signers = {1, 2};
+  const SignFixture fixture = BuildSignFixture(signers);
+  std::vector<SignConfig> configs =
+      BuildSignConfigs(fixture, keygen_results, Bytes{0xE8, 0x02, 0x01},
+                       Bytes{0xD8, 0x03, 0x01});
+
+  tecdsa::ecdsa::sign::SignParty party(std::move(configs.front()));
+  Expect(party.config().self_id == 1,
+         "ecdsa::sign::SignParty must expose the same config shape");
+
+  auto sign_parties = BuildDefaultSignParties(
+      keygen_results, Bytes{0xD8, 0x03, 0x01}, Bytes{0xE8, 0x02, 0x02});
+  SignRoundState state;
+  RunToCompletion(&sign_parties, signers, &state);
+  const auto signatures =
+      FinalizeSignatures(&sign_parties, signers, state.round5e);
+  const Signature& signature = signatures.at(1);
+  Expect(tecdsa::ecdsa::verify::VerifyEcdsaSignatureMath(
+             keygen_results.at(1).public_keygen_data.y,
+             std::span<const uint8_t>(fixture.msg32.data(), fixture.msg32.size()),
+             signature.r, signature.s),
+         "ecdsa::verify::VerifyEcdsaSignatureMath must verify the final signature");
 }
 
 void TestStage6MalformedPhase2InitProofPayloadAbortsResponder() {
