@@ -15,16 +15,40 @@
 #pragma once
 
 #include <span>
+#include <string>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 
-namespace tecdsa {
+namespace tecdsa::core {
 
-using core::HashId;
+enum class SchemeId {
+  kEcdsa,
+  kSm2,
+};
+
+enum class CurveId {
+  kSecp256k1,
+  kSm2P256V1,
+};
+
+enum class HashId {
+  kSha256,
+  kSha512,
+  kSm3,
+};
+
+struct ThresholdSuite {
+  SchemeId scheme = SchemeId::kEcdsa;
+  CurveId curve = CurveId::kSecp256k1;
+  HashId transcript_hash = HashId::kSha256;
+  HashId commitment_hash = HashId::kSha256;
+  HashId message_hash = HashId::kSha256;
+  std::string proof_domain_prefix = "GG2019";
+  bool normalize_low_s = true;
+};
+
+const ThresholdSuite& DefaultEcdsaSuite();
 
 Bytes Hash(HashId hash_id, std::span<const uint8_t> data);
-Bytes Sha256(std::span<const uint8_t> data);
-Bytes Sha512(std::span<const uint8_t> data);
 
-}  // namespace tecdsa
+}  // namespace tecdsa::core

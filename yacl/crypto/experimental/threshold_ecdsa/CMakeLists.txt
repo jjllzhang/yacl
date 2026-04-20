@@ -20,10 +20,29 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenSSL QUIET)
+find_path(ABSL_INCLUDE_DIR absl/debugging/stacktrace.h)
+find_path(LIBTOMMATH_INCLUDE_DIR libtommath/tommath.h)
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+if(NOT ABSL_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "threshold_ecdsa CMake build requires Abseil headers "
+    "(missing absl/debugging/stacktrace.h). "
+    "Use Bazel inside the YACL repo, or provide Abseil via CMAKE_PREFIX_PATH/CPATH.")
+endif()
+
+if(NOT LIBTOMMATH_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "threshold_ecdsa CMake build requires libtommath headers "
+    "(missing libtommath/tommath.h). "
+    "Use Bazel inside the YACL repo, or provide libtommath via CMAKE_PREFIX_PATH/CPATH.")
+endif()
+
 add_library(tecdsa_core
+  core/suite/group_context.cc
+  core/algebra/scalar.cc
+  core/algebra/point.cc
   crypto/scalar.cc
   crypto/ec_point.cc
   crypto/ecdsa_verify.cc
@@ -45,6 +64,8 @@ add_library(tecdsa_core
 target_include_directories(tecdsa_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../../
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${ABSL_INCLUDE_DIR}
+  ${LIBTOMMATH_INCLUDE_DIR}
 )
 
 if(OpenSSL_FOUND)

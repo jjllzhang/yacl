@@ -21,6 +21,7 @@
 #include <string_view>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa {
@@ -32,6 +33,9 @@ struct TranscriptFieldRef {
 
 class Transcript {
  public:
+  Transcript();
+  explicit Transcript(core::HashId challenge_hash);
+
   void append(std::string_view label, std::span<const uint8_t> data);
   void append_ascii(std::string_view label, std::string_view ascii);
   void append_proof_id(std::string_view proof_id);
@@ -43,6 +47,7 @@ class Transcript {
   const Bytes& bytes() const;
 
  private:
+  core::HashId challenge_hash_;
   Bytes transcript_;
 };
 

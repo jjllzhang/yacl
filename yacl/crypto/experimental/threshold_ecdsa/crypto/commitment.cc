@@ -65,7 +65,7 @@ Bytes ComputeCommitment(const std::string& domain,
                         std::span<const uint8_t> message,
                         std::span<const uint8_t> randomness) {
   const Bytes preimage = BuildCommitPreimage(domain, message, randomness);
-  return Sha256(preimage);
+  return core::Hash(core::DefaultEcdsaSuite().commitment_hash, preimage);
 }
 
 bool VerifyCommitment(const std::string& domain,

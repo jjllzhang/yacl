@@ -30,6 +30,12 @@ std::span<const uint8_t> AsByteSpan(std::string_view value) {
 
 }  // namespace
 
+Transcript::Transcript()
+    : Transcript(core::DefaultEcdsaSuite().transcript_hash) {}
+
+Transcript::Transcript(core::HashId challenge_hash)
+    : challenge_hash_(challenge_hash) {}
+
 void Transcript::append(std::string_view label, std::span<const uint8_t> data) {
   if (label.size() > UINT32_MAX || data.size() > UINT32_MAX) {
     TECDSA_THROW_ARGUMENT("Transcript field exceeds uint32 length");
@@ -72,7 +78,7 @@ void Transcript::append_fields(
 }
 
 Scalar Transcript::challenge_scalar_mod_q() const {
-  return Scalar::FromBigEndianModQ(Sha256(transcript_));
+  return Scalar::FromBigEndianModQ(core::Hash(challenge_hash_, transcript_));
 }
 
 const Bytes& Transcript::bytes() const { return transcript_; }

@@ -19,12 +19,14 @@ package(default_visibility = ["//visibility:public"])
 TECDSA_COPTS = ["-std=gnu++20"]
 
 TECDSA_CORE_SRCS = glob([
+    "core/**/*.cc",
     "crypto/*.cc",
     "protocol/*.cc",
 ])
 
 TECDSA_CORE_HDRS = glob([
     "common/*.h",
+    "core/**/*.h",
     "crypto/*.h",
     "protocol/*.h",
 ])

@@ -40,9 +40,10 @@ deployment.
 ## Repository Layout
 
 ```text
+core/          # stage-1 suite/algebra groundwork for shared threshold-signature code
 common/        # bytes/error helpers
-crypto/        # Scalar/ECPoint/Paillier/hash/commitment/encoding/transcript/proofs
-protocol/      # Round-driven keygen/sign prototype API
+crypto/        # compatibility wrappers plus Paillier/hash/commitment/encoding/transcript/proofs
+protocol/      # round-driven ECDSA keygen/sign prototype API
 tests/
   crypto_primitives_test.cc
   keygen_flow_test.cc
@@ -58,28 +59,36 @@ tests/
 
 - CMake >= 3.22
 - C++20 compiler (`clang++` or `g++`)
-- libtommath (backend dependency of `yacl/math/mpint` / `MPInt`)
+- Abseil headers (`absl/debugging/stacktrace.h`, `absl/types/span.h`)
+- libtommath headers (`libtommath/tommath.h`)
 - OpenSSL `libcrypto`
 
 ### Build
 
+The verified in-repo build path is Bazel. The standalone CMake path below only
+works when Abseil and libtommath headers are already provisioned for the local
+toolchain.
+
 ```bash
-cmake -S . -B build
-cmake --build build -j
+cmake -S yacl/crypto/experimental/threshold_ecdsa -B /tmp/tecdsa-cmake
+cmake --build /tmp/tecdsa-cmake -j
 ```
 
 ### Bazel
 
 ```bash
-bazelisk build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_core
-bazelisk build //yacl/crypto/experimental/threshold_ecdsa/...
+bazelisk --output_user_root=/tmp/bazel_zjl query //yacl/crypto/experimental/threshold_ecdsa:all
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_core
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:crypto_primitives_tests
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:keygen_flow_tests
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:sign_flow_tests
 ```
 
 If your environment resolves `rules_foreign_cc` to `built_make` and fails on
 `BootstrapGNUMake`, run with one-off toolchain flags:
 
 ```bash
-bazelisk build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_core \
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_core \
   --extra_toolchains=@rules_foreign_cc//toolchains:preinstalled_make_toolchain,@rules_foreign_cc//toolchains:preinstalled_pkgconfig_toolchain
 ```
 
@@ -88,23 +97,23 @@ bazelisk build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_core \
 Run all CMake tests:
 
 ```bash
-ctest --test-dir build --output-on-failure
+ctest --test-dir /tmp/tecdsa-cmake --output-on-failure
 ```
 
 Run individual CMake executables:
 
 ```bash
-./build/crypto_primitives_tests
-./build/keygen_flow_tests
-./build/sign_flow_tests
+/tmp/tecdsa-cmake/crypto_primitives_tests
+/tmp/tecdsa-cmake/keygen_flow_tests
+/tmp/tecdsa-cmake/sign_flow_tests
 ```
 
-Run Bazel test binaries:
+Run Bazel test binaries. These are `yacl_cc_binary` targets, not `cc_test` rules:
 
 ```bash
-bazelisk run //yacl/crypto/experimental/threshold_ecdsa:crypto_primitives_tests
-bazelisk run //yacl/crypto/experimental/threshold_ecdsa:keygen_flow_tests
-bazelisk run //yacl/crypto/experimental/threshold_ecdsa:sign_flow_tests
+bazelisk --output_user_root=/tmp/bazel_zjl run //yacl/crypto/experimental/threshold_ecdsa:crypto_primitives_tests
+bazelisk --output_user_root=/tmp/bazel_zjl run //yacl/crypto/experimental/threshold_ecdsa:keygen_flow_tests
+bazelisk --output_user_root=/tmp/bazel_zjl run //yacl/crypto/experimental/threshold_ecdsa:sign_flow_tests
 ```
 
 Migration sanity check (should be zero hits in code files):

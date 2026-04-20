@@ -19,6 +19,10 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/point.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
@@ -35,6 +39,9 @@ using tecdsa::BigInt;
 using tecdsa::Bytes;
 using tecdsa::CommitMessage;
 using tecdsa::ComputeCommitment;
+using tecdsa::core::CurveId;
+using tecdsa::core::DefaultEcdsaSuite;
+using tecdsa::core::DefaultGroupContext;
 using tecdsa::DecodeMpInt;
 using tecdsa::ECPoint;
 using tecdsa::EncodeMpInt;
@@ -67,6 +74,37 @@ Scalar XCoordinateModQ(const ECPoint& point) {
   }
   return Scalar::FromBigEndianModQ(
       std::span<const uint8_t>(compressed.data() + 1, 32));
+}
+
+void TestStage1SuiteMetadata() {
+  const auto& suite = DefaultEcdsaSuite();
+  Expect(suite.curve == CurveId::kSecp256k1,
+         "Default suite must stay on secp256k1 in stage 1");
+  Expect(suite.transcript_hash == tecdsa::HashId::kSha256,
+         "Default suite transcript hash must stay SHA256");
+  Expect(suite.commitment_hash == tecdsa::HashId::kSha256,
+         "Default suite commitment hash must stay SHA256");
+  Expect(DefaultGroupContext()->curve_id() == CurveId::kSecp256k1,
+         "Default group context must stay on secp256k1 in stage 1");
+}
+
+void TestCoreAlgebraCompatibility() {
+  const tecdsa::core::Scalar core_two = tecdsa::core::Scalar::FromUint64(2);
+  const tecdsa::core::Scalar core_three = tecdsa::core::Scalar::FromUint64(3);
+  const tecdsa::core::Point core_g2 = tecdsa::core::Point::GeneratorMultiply(core_two);
+  const tecdsa::core::Point core_g3 =
+      tecdsa::core::Point::GeneratorMultiply(core_three);
+
+  const Scalar compat_two = Scalar::FromUint64(2);
+  const ECPoint compat_g2 = ECPoint::GeneratorMultiply(compat_two);
+  const ECPoint compat_g3 = ECPoint::GeneratorMultiply(Scalar::FromUint64(3));
+
+  Expect(core_two.group()->curve_id() == CurveId::kSecp256k1,
+         "core::Scalar must inherit the default secp256k1 group");
+  Expect(core_g2.ToCompressedBytes() == compat_g2.ToCompressedBytes(),
+         "compat ECPoint alias must match core::Point encoding");
+  Expect(core_g3.ToCompressedBytes() == compat_g3.ToCompressedBytes(),
+         "core::Point arithmetic must match legacy ECPoint behavior");
 }
 
 void TestMpIntRoundTrip() {
@@ -202,12 +240,15 @@ void TestEcdsaVerifyRegression() {
 
 void TestHashAndCommitment() {
   const Bytes msg = {'a', 'b', 'c'};
+  const Bytes digest_via_suite = tecdsa::Hash(tecdsa::HashId::kSha256, msg);
   const Bytes digest = Sha256(msg);
   const Bytes expected = {0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
                           0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
                           0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
                           0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad};
   Expect(digest == expected, "SHA256 must match known test vector for 'abc'");
+  Expect(digest_via_suite == expected,
+         "suite-driven hash helper must match SHA256 test vector");
 
   const std::string domain = "keygen/phase1";
   const Bytes randomness = {1, 2, 3, 4, 5};
@@ -263,8 +304,15 @@ void TestTranscriptChallengeDeterminismAndOrder() {
   const Scalar c2 = t2.challenge_scalar_mod_q();
   const Scalar c3 = t3.challenge_scalar_mod_q();
 
+  Transcript t4(tecdsa::HashId::kSha512);
+  t4.append("field1", first);
+  t4.append("field2", second);
+  const Scalar c4 = t4.challenge_scalar_mod_q();
+
   Expect(c1 == c2, "Transcript challenge must be deterministic");
   Expect(c1 != c3, "Transcript challenge should depend on append order");
+  Expect(c1 != c4,
+         "Transcript challenge should honor the configured suite hash");
 }
 
 void TestPaillierNative() {
@@ -318,6 +366,8 @@ void TestPaillierNative() {
 
 int main() {
   try {
+    TestStage1SuiteMetadata();
+    TestCoreAlgebraCompatibility();
     TestMpIntRoundTrip();
     TestScalarEncodingAndReduction();
     TestPointEncoding();
