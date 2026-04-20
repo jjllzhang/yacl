@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include <iostream>
+#include <type_traits>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/keygen.h"
 #include "sign_flow_test_shared.h"
 
 namespace {
@@ -126,6 +128,23 @@ void TestKeygenConsistencyN3T1() {
 void TestKeygenConsistencyN5T2() {
   RunHonestKeygenAndAssertConsistency(/*n=*/5, /*t=*/2,
                                       Bytes{0xA1, 0x05, 0x02});
+}
+
+void TestStage5ProtocolKeygenCompatibilityAlias() {
+  static_assert(std::is_same_v<tecdsa::proto::KeygenConfig,
+                               tecdsa::ecdsa::keygen::KeygenConfig>);
+  static_assert(std::is_same_v<tecdsa::proto::KeygenParty,
+                               tecdsa::ecdsa::keygen::KeygenParty>);
+
+  tecdsa::ecdsa::keygen::KeygenConfig cfg;
+  cfg.session_id = Bytes{0xA5, 0x05, 0x01};
+  cfg.self_id = 1;
+  cfg.participants = BuildParticipants(3);
+  cfg.threshold = 1;
+
+  tecdsa::ecdsa::keygen::KeygenParty party(std::move(cfg));
+  Expect(party.config().self_id == 1,
+         "ecdsa::keygen::KeygenParty must expose the same config shape");
 }
 
 void TestTamperedPhase2ShareAbortsReceiver() {
@@ -250,6 +269,7 @@ int main() {
   try {
     TestKeygenConsistencyN3T1();
     TestKeygenConsistencyN5T2();
+    TestStage5ProtocolKeygenCompatibilityAlias();
     TestTamperedPhase1PaillierModulusAbortsReceiver();
     TestTamperedPhase2ShareAbortsReceiver();
     TestTamperedPhase3SchnorrAbortsPeers();
