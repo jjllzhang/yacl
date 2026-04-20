@@ -24,6 +24,8 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
@@ -43,6 +45,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/random.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/transcript.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
 namespace {
 
 using tecdsa::BigInt;
@@ -260,6 +263,104 @@ void TestStage3CoreCryptoCompatibility() {
   Expect(!tecdsa::core::paillier::VerifySquareFreeProofGmr98(
              core_paillier.modulus_n_bigint(), square_free, wrong_ctx),
          "core square-free proof must bind the verifier context");
+}
+
+void TestStage4MtaAndRelationHelpers() {
+  tecdsa::core::mta::PairwiseProductSession session(
+      {.session_id = Bytes{0x70, 0x34}, .self_id = 1});
+  const Bytes instance_id = session.AllocateInstanceId();
+  Expect(instance_id.size() == tecdsa::core::mta::kMtaInstanceIdLen,
+         "PairwiseProductSession must allocate 16-byte instance ids");
+  session.RegisterInitiatorInstance({
+      .responder = 2,
+      .type = tecdsa::core::mta::MtaType::kMta,
+      .instance_id = instance_id,
+      .c1 = BigInt(11),
+  });
+  Expect(session.initiator_instance_count() == 1,
+         "PairwiseProductSession must track registered initiator instances");
+  Expect(session.GetInitiatorInstance(instance_id).responder == 2,
+         "PairwiseProductSession lookup must return the stored instance");
+  ExpectThrow(
+      [&]() {
+        session.RegisterInitiatorInstance({
+            .responder = 3,
+            .type = tecdsa::core::mta::MtaType::kMtAwc,
+            .instance_id = instance_id,
+            .c1 = BigInt(13),
+        });
+      },
+      "PairwiseProductSession must reject duplicate instance ids");
+
+  PaillierProvider paillier(/*modulus_bits=*/512);
+  const auto aux_params =
+      tecdsa::core::paillier::GenerateAuxRsaParams(/*modulus_bits=*/64,
+                                                   /*party_id=*/2);
+  const BigInt witness = Scalar::FromUint64(11).mp_value();
+  const auto encrypted = paillier.EncryptWithRandomBigInt(witness);
+  const auto ctx = tecdsa::core::mta::BuildProofContext(Bytes{0x44, 0x04},
+                                                        /*initiator_id=*/1,
+                                                        /*responder_id=*/2,
+                                                        instance_id);
+  const auto a1_proof = tecdsa::core::mta::ProveA1Range(
+      ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+      witness, encrypted.randomness);
+  Expect(tecdsa::core::mta::VerifyA1Range(ctx, paillier.modulus_n_bigint(),
+                                          aux_params, encrypted.ciphertext,
+                                          a1_proof),
+         "core::mta A1 proof must verify under the original context");
+
+  auto wrong_session_ctx = ctx;
+  wrong_session_ctx.session_id.push_back(0x01);
+  Expect(!tecdsa::core::mta::VerifyA1Range(
+             wrong_session_ctx, paillier.modulus_n_bigint(), aux_params,
+             encrypted.ciphertext, a1_proof),
+         "core::mta A1 proof must bind the session id");
+
+  auto swapped_roles_ctx = ctx;
+  std::swap(swapped_roles_ctx.initiator_id, swapped_roles_ctx.responder_id);
+  Expect(!tecdsa::core::mta::VerifyA1Range(
+             swapped_roles_ctx, paillier.modulus_n_bigint(), aux_params,
+             encrypted.ciphertext, a1_proof),
+         "core::mta A1 proof must bind initiator and responder ids");
+
+  auto wrong_instance_ctx = ctx;
+  wrong_instance_ctx.instance_id.back() ^= 0x01;
+  Expect(!tecdsa::core::mta::VerifyA1Range(
+             wrong_instance_ctx, paillier.modulus_n_bigint(), aux_params,
+             encrypted.ciphertext, a1_proof),
+         "core::mta A1 proof must bind the instance id");
+
+  const Bytes relation_session = {0x51, 0x04};
+  const Scalar relation_r = Scalar::FromUint64(7);
+  const Scalar s_witness = Scalar::FromUint64(9);
+  const Scalar l_witness = Scalar::FromUint64(4);
+  const ECPoint r_statement = ECPoint::GeneratorMultiply(relation_r);
+  ECPoint v_statement = ECPoint::GeneratorMultiply(l_witness);
+  if (s_witness.value() != 0) {
+    v_statement = v_statement.Add(r_statement.Mul(s_witness));
+  }
+
+  const auto relation_proof = tecdsa::ecdsa::sign::BuildVRelationProof(
+      relation_session, /*prover_id=*/3, r_statement, v_statement, s_witness,
+      l_witness);
+  Expect(tecdsa::ecdsa::sign::VerifyVRelationProof(
+             relation_session, /*prover_id=*/3, r_statement, v_statement,
+             relation_proof),
+         "ecdsa relation proof must verify under the original context");
+  Expect(!tecdsa::ecdsa::sign::VerifyVRelationProof(
+             Bytes{0x51, 0x05}, /*prover_id=*/3, r_statement, v_statement,
+             relation_proof),
+         "ecdsa relation proof must bind the session id");
+  Expect(!tecdsa::ecdsa::sign::VerifyVRelationProof(
+             relation_session, /*prover_id=*/4, r_statement, v_statement,
+             relation_proof),
+         "ecdsa relation proof must bind the prover id");
+  Expect(!tecdsa::ecdsa::sign::VerifyVRelationProof(
+             relation_session, /*prover_id=*/3,
+             ECPoint::GeneratorMultiply(Scalar::FromUint64(8)), v_statement,
+             relation_proof),
+         "ecdsa relation proof must bind the R statement");
 }
 
 void TestMpIntRoundTrip() {
@@ -526,6 +627,7 @@ int main() {
     TestStage2ParticipantAndVssHelpers();
     TestStage2SchnorrHelpers();
     TestStage3CoreCryptoCompatibility();
+    TestStage4MtaAndRelationHelpers();
     TestMpIntRoundTrip();
     TestScalarEncodingAndReduction();
     TestPointEncoding();

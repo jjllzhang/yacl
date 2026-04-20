@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
 
@@ -53,17 +54,10 @@ class SignParty {
   SignRound5BMsg MakeRound5B(const PeerMap<SignRound5AMsg>& peer_round5a);
   SignRound5CMsg MakeRound5C(const PeerMap<SignRound5BMsg>& peer_round5b);
   SignRound5DMsg MakeRound5D(const PeerMap<SignRound5CMsg>& peer_round5c);
-  Scalar RevealRound5E(const PeerMap<SignRound5DMsg>& peer_round5d);
+ Scalar RevealRound5E(const PeerMap<SignRound5DMsg>& peer_round5d);
   Signature Finalize(const PeerMap<Scalar>& peer_round5e);
 
  private:
-  struct Phase2InitiatorInstance {
-    PartyIndex responder = 0;
-    MtaType type = MtaType::kTimesGamma;
-    Bytes instance_id;
-    BigInt c1 = BigInt(0);
-  };
-
   void PrepareResharedSigningShares();
   void EnsurePhase1Prepared();
   void EnsureRound5ASharePrepared();
@@ -81,8 +75,7 @@ class SignParty {
   ECPoint local_Gamma_i_;
   Bytes local_round1_randomness_;
   PeerMap<Bytes> phase1_commitments_;
-  std::unordered_map<std::string, Phase2InitiatorInstance>
-      phase2_initiator_instances_;
+  core::mta::PairwiseProductSession phase2_session_;
   std::vector<SignRound2Request> round2_requests_;
   std::optional<std::vector<SignRound2Response>> round2_responses_;
   Scalar phase2_mta_initiator_sum_;

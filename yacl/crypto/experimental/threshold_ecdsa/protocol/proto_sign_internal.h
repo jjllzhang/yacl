@@ -14,77 +14,36 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
 #include <optional>
-#include <string>
-#include <vector>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::sign_internal {
 
-inline constexpr size_t kCommitmentLen = 32;
-inline constexpr size_t kMtaInstanceIdLen = 16;
-inline constexpr char kPhase1CommitDomain[] = "GG2019/sign/phase1";
-inline constexpr char kPhase5ACommitDomain[] = "GG2019/sign/phase5A";
-inline constexpr char kPhase5CCommitDomain[] = "GG2019/sign/phase5C";
+using MtaProofContext = tecdsa::core::mta::MtaProofContext;
+using PairwiseProductInitiatorInstance =
+    tecdsa::core::mta::PairwiseProductInitiatorInstance;
+using PairwiseProductSession = tecdsa::core::mta::PairwiseProductSession;
+using tecdsa::core::mta::BuildProofContext;
+using tecdsa::core::mta::BytesToKey;
+using tecdsa::core::mta::ExpectedPairwiseProductMessageCount;
+using tecdsa::core::mta::kMtaInstanceIdLen;
+using tecdsa::core::mta::MakeResponderRequestKey;
+using tecdsa::core::mta::MulMod;
+using tecdsa::core::mta::PowMod;
+using tecdsa::core::mta::ProveA1Range;
+using tecdsa::core::mta::ProveA2MtAwc;
+using tecdsa::core::mta::ProveA3MtA;
+using tecdsa::core::mta::QPow5;
+using tecdsa::core::mta::RandomBelow;
+using tecdsa::core::mta::RandomMtaInstanceId;
+using tecdsa::core::mta::SampleZnStar;
+using tecdsa::core::mta::VerifyA1Range;
+using tecdsa::core::mta::VerifyA2MtAwc;
+using tecdsa::core::mta::VerifyA3MtA;
 
-using AuxRsaParams = tecdsa::AuxRsaParams;
-using A1RangeProof = tecdsa::proto::A1RangeProof;
-using A2MtAwcProof = tecdsa::proto::A2MtAwcProof;
-using A3MtAProof = tecdsa::proto::A3MtAProof;
-
-struct MtaProofContext {
-  Bytes session_id;
-  PartyIndex initiator_id = 0;
-  PartyIndex responder_id = 0;
-  Bytes mta_instance_id;
-};
-
-std::string BytesToKey(const Bytes& bytes);
-std::string MakeResponderRequestKey(PartyIndex initiator, uint8_t type_code);
-Bytes RandomMtaInstanceId();
-
-BigInt RandomBelow(const BigInt& upper_exclusive);
-BigInt SampleZnStar(const BigInt& modulus_n);
-const BigInt& QPow5();
-BigInt MulMod(const BigInt& lhs, const BigInt& rhs, const BigInt& modulus);
-BigInt PowMod(const BigInt& base, const BigInt& exp, const BigInt& modulus);
 std::optional<Scalar> InvertScalar(const Scalar& scalar);
-
-A1RangeProof ProveA1Range(const MtaProofContext& ctx, const BigInt& n,
-                          const AuxRsaParams& verifier_aux, const BigInt& c,
-                          const BigInt& witness_m, const BigInt& witness_r);
-bool VerifyA1Range(const MtaProofContext& ctx, const BigInt& n,
-                   const AuxRsaParams& verifier_aux, const BigInt& c,
-                   const A1RangeProof& proof);
-
-A2MtAwcProof ProveA2MtAwc(const MtaProofContext& ctx, const BigInt& n,
-                          const AuxRsaParams& verifier_aux, const BigInt& c1,
-                          const BigInt& c2, const ECPoint& statement_x,
-                          const BigInt& witness_x, const BigInt& witness_y,
-                          const BigInt& witness_r);
-bool VerifyA2MtAwc(const MtaProofContext& ctx, const BigInt& n,
-                   const AuxRsaParams& verifier_aux, const BigInt& c1,
-                   const BigInt& c2, const ECPoint& statement_x,
-                   const A2MtAwcProof& proof);
-
-A3MtAProof ProveA3MtA(const MtaProofContext& ctx, const BigInt& n,
-                      const AuxRsaParams& verifier_aux, const BigInt& c1,
-                      const BigInt& c2, const BigInt& witness_x,
-                      const BigInt& witness_y, const BigInt& witness_r);
-bool VerifyA3MtA(const MtaProofContext& ctx, const BigInt& n,
-                 const AuxRsaParams& verifier_aux, const BigInt& c1,
-                 const BigInt& c2, const A3MtAProof& proof);
-
-Bytes SerializePointPair(const ECPoint& first, const ECPoint& second);
-Scalar BuildVRelationChallenge(const Bytes& session_id, PartyIndex party_id,
-                               const ECPoint& r_statement,
-                               const ECPoint& v_statement,
-                               const ECPoint& alpha);
-ECPoint BuildRGeneratorLinearCombination(const ECPoint& r_base,
-                                         const Scalar& r_multiplier,
-                                         const Scalar& g_multiplier);
 
 }  // namespace tecdsa::sign_internal

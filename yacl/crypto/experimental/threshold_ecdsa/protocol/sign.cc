@@ -24,18 +24,93 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ecdsa_verify.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/random.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_sign_internal.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
 
 namespace tecdsa::proto {
 namespace {
 
-using InternalMtaProofContext = tecdsa::sign_internal::MtaProofContext;
+namespace mta = tecdsa::core::mta;
+namespace relation = tecdsa::ecdsa::sign;
+
+inline constexpr size_t kCommitmentLen = 32;
+inline constexpr char kPhase1CommitDomain[] = "GG2019/sign/phase1";
+inline constexpr char kPhase5ACommitDomain[] = "GG2019/sign/phase5A";
+inline constexpr char kPhase5CCommitDomain[] = "GG2019/sign/phase5C";
+
+mta::MtaType ToCoreMtaType(MtaType type) {
+  switch (type) {
+    case MtaType::kTimesGamma:
+      return mta::MtaType::kMta;
+    case MtaType::kTimesW:
+      return mta::MtaType::kMtAwc;
+  }
+  TECDSA_THROW_ARGUMENT("unknown protocol MtaType");
+}
+
+MtaType FromCoreMtaType(mta::MtaType type) {
+  switch (type) {
+    case mta::MtaType::kMta:
+      return MtaType::kTimesGamma;
+    case mta::MtaType::kMtAwc:
+      return MtaType::kTimesW;
+  }
+  TECDSA_THROW_ARGUMENT("unknown core MtaType");
+}
+
+SignRound2Request ToProtocolRequest(const mta::PairwiseProductRequest& request) {
+  return SignRound2Request{
+      .from = request.from,
+      .to = request.to,
+      .type = FromCoreMtaType(request.type),
+      .instance_id = request.instance_id,
+      .c1 = request.c1,
+      .a1_proof = request.a1_proof,
+  };
+}
+
+mta::PairwiseProductRequest ToCoreRequest(const SignRound2Request& request) {
+  return mta::PairwiseProductRequest{
+      .from = request.from,
+      .to = request.to,
+      .type = ToCoreMtaType(request.type),
+      .instance_id = request.instance_id,
+      .c1 = request.c1,
+      .a1_proof = request.a1_proof,
+  };
+}
+
+SignRound2Response ToProtocolResponse(
+    const mta::PairwiseProductResponse& response) {
+  return SignRound2Response{
+      .from = response.from,
+      .to = response.to,
+      .type = FromCoreMtaType(response.type),
+      .instance_id = response.instance_id,
+      .c2 = response.c2,
+      .a2_proof = response.a2_proof,
+      .a3_proof = response.a3_proof,
+  };
+}
+
+mta::PairwiseProductResponse ToCoreResponse(const SignRound2Response& response) {
+  return mta::PairwiseProductResponse{
+      .from = response.from,
+      .to = response.to,
+      .type = ToCoreMtaType(response.type),
+      .instance_id = response.instance_id,
+      .c2 = response.c2,
+      .a2_proof = response.a2_proof,
+      .a3_proof = response.a3_proof,
+  };
+}
 
 bool IsPeer(const std::vector<PartyIndex>& peers, PartyIndex party) {
   return std::find(peers.begin(), peers.end(), party) != peers.end();
@@ -43,146 +118,20 @@ bool IsPeer(const std::vector<PartyIndex>& peers, PartyIndex party) {
 
 void ValidateCommitmentOrThrow(const Bytes& commitment,
                                const char* field_name) {
-  if (commitment.size() != tecdsa::sign_internal::kCommitmentLen) {
+  if (commitment.size() != kCommitmentLen) {
     TECDSA_THROW_ARGUMENT(std::string(field_name) +
                           " must be exactly 32 bytes");
   }
 }
 
-size_t ExpectedPhase2MessageCount(const std::vector<PartyIndex>& peers) {
-  return peers.size() * 2;
-}
-
-InternalMtaProofContext BuildMtaContext(const Bytes& session_id,
-                                        PartyIndex initiator_id,
-                                        PartyIndex responder_id,
-                                        const Bytes& instance_id) {
-  return InternalMtaProofContext{
-      .session_id = session_id,
-      .initiator_id = initiator_id,
-      .responder_id = responder_id,
-      .mta_instance_id = instance_id,
-  };
-}
-
-A1RangeProof ProveA1Range(const Bytes& session_id, PartyIndex initiator_id,
-                          PartyIndex responder_id, const Bytes& instance_id,
-                          const BigInt& n, const AuxRsaParams& verifier_aux,
-                          const BigInt& c, const BigInt& witness_m,
-                          const BigInt& witness_r) {
-  return tecdsa::sign_internal::ProveA1Range(
-      BuildMtaContext(session_id, initiator_id, responder_id, instance_id), n,
-      verifier_aux, c, witness_m, witness_r);
-}
-
-bool VerifyA1Range(const Bytes& session_id, PartyIndex initiator_id,
-                   PartyIndex responder_id, const Bytes& instance_id,
-                   const BigInt& n, const AuxRsaParams& verifier_aux,
-                   const BigInt& c, const A1RangeProof& proof) {
-  return tecdsa::sign_internal::VerifyA1Range(
-      BuildMtaContext(session_id, initiator_id, responder_id, instance_id), n,
-      verifier_aux, c, proof);
-}
-
-A2MtAwcProof ProveA2MtAwc(const Bytes& session_id, PartyIndex initiator_id,
-                          PartyIndex responder_id, const Bytes& instance_id,
-                          const BigInt& n, const AuxRsaParams& verifier_aux,
-                          const BigInt& c1, const BigInt& c2,
-                          const ECPoint& statement_x, const BigInt& witness_x,
-                          const BigInt& witness_y, const BigInt& witness_r) {
-  return tecdsa::sign_internal::ProveA2MtAwc(
-      BuildMtaContext(session_id, initiator_id, responder_id, instance_id), n,
-      verifier_aux, c1, c2, statement_x, witness_x, witness_y, witness_r);
-}
-
-bool VerifyA2MtAwc(const Bytes& session_id, PartyIndex initiator_id,
-                   PartyIndex responder_id, const Bytes& instance_id,
-                   const BigInt& n, const AuxRsaParams& verifier_aux,
-                   const BigInt& c1, const BigInt& c2,
-                   const ECPoint& statement_x, const A2MtAwcProof& proof) {
-  return tecdsa::sign_internal::VerifyA2MtAwc(
-      BuildMtaContext(session_id, initiator_id, responder_id, instance_id), n,
-      verifier_aux, c1, c2, statement_x, proof);
-}
-
-A3MtAProof ProveA3MtA(const Bytes& session_id, PartyIndex initiator_id,
-                      PartyIndex responder_id, const Bytes& instance_id,
-                      const BigInt& n, const AuxRsaParams& verifier_aux,
-                      const BigInt& c1, const BigInt& c2,
-                      const BigInt& witness_x, const BigInt& witness_y,
-                      const BigInt& witness_r) {
-  return tecdsa::sign_internal::ProveA3MtA(
-      BuildMtaContext(session_id, initiator_id, responder_id, instance_id), n,
-      verifier_aux, c1, c2, witness_x, witness_y, witness_r);
-}
-
-bool VerifyA3MtA(const Bytes& session_id, PartyIndex initiator_id,
-                 PartyIndex responder_id, const Bytes& instance_id,
-                 const BigInt& n, const AuxRsaParams& verifier_aux,
-                 const BigInt& c1, const BigInt& c2, const A3MtAProof& proof) {
-  return tecdsa::sign_internal::VerifyA3MtA(
-      BuildMtaContext(session_id, initiator_id, responder_id, instance_id), n,
-      verifier_aux, c1, c2, proof);
-}
-
-VRelationProof BuildVRelationProof(const Bytes& session_id,
-                                   PartyIndex prover_id,
-                                   const ECPoint& r_statement,
-                                   const ECPoint& v_statement,
-                                   const Scalar& s_witness,
-                                   const Scalar& l_witness) {
-  while (true) {
-    const Scalar a = Csprng::RandomScalar();
-    const Scalar b = Csprng::RandomScalar();
-    if (a.value() == 0 && b.value() == 0) {
-      continue;
-    }
-
-    ECPoint alpha;
-    try {
-      alpha = tecdsa::sign_internal::BuildRGeneratorLinearCombination(
-          r_statement, a, b);
-    } catch (const std::exception&) {
-      continue;
-    }
-
-    const Scalar c = tecdsa::sign_internal::BuildVRelationChallenge(
-        session_id, prover_id, r_statement, v_statement, alpha);
-    const Scalar t = a + (c * s_witness);
-    const Scalar u = b + (c * l_witness);
-    if (t.value() == 0 && u.value() == 0) {
-      continue;
-    }
-
-    return VRelationProof{
-        .alpha = alpha,
-        .t = t,
-        .u = u,
-    };
+std::optional<Scalar> TryInvertScalar(const Scalar& scalar) {
+  if (scalar.value() == 0) {
+    return std::nullopt;
   }
-}
-
-bool VerifyVRelationProof(const Bytes& session_id, PartyIndex prover_id,
-                          const ECPoint& r_statement,
-                          const ECPoint& v_statement,
-                          const VRelationProof& proof) {
-  if (proof.t.value() == 0 && proof.u.value() == 0) {
-    return false;
-  }
-
   try {
-    const Scalar c = tecdsa::sign_internal::BuildVRelationChallenge(
-        session_id, prover_id, r_statement, v_statement, proof.alpha);
-    const ECPoint lhs = tecdsa::sign_internal::BuildRGeneratorLinearCombination(
-        r_statement, proof.t, proof.u);
-
-    ECPoint rhs = proof.alpha;
-    if (c.value() != 0) {
-      rhs = rhs.Add(v_statement.Mul(c));
-    }
-    return lhs == rhs;
+    return scalar.InverseModQ();
   } catch (const std::exception&) {
-    return false;
+    return std::nullopt;
   }
 }
 
@@ -190,7 +139,9 @@ bool VerifyVRelationProof(const Bytes& session_id, PartyIndex prover_id,
 
 SignParty::SignParty(SignConfig cfg)
     : cfg_(std::move(cfg)),
-      message_scalar_(Scalar::FromBigEndianModQ(cfg_.msg32)) {
+      message_scalar_(Scalar::FromBigEndianModQ(cfg_.msg32)),
+      phase2_session_(
+          {.session_id = cfg_.session_id, .self_id = cfg_.self_id}) {
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "SignParty");
   peers_ = participant_set.peers;
@@ -316,7 +267,7 @@ void SignParty::EnsurePhase1Prepared() {
   local_Gamma_i_ = ECPoint::GeneratorMultiply(local_gamma_i_);
 
   const core::commitment::CommitmentResult commit =
-      core::commitment::CommitMessage(tecdsa::sign_internal::kPhase1CommitDomain,
+      core::commitment::CommitMessage(kPhase1CommitDomain,
                                       local_Gamma_i_.ToCompressedBytes());
   local_round1_randomness_ = commit.randomness;
   round1_ = SignRound1Msg{.commitment = commit.commitment};
@@ -340,8 +291,8 @@ void SignParty::EnsureRound5ASharePrepared() {
 
   const core::commitment::CommitmentResult commit =
       core::commitment::CommitMessage(
-          tecdsa::sign_internal::kPhase5ACommitDomain,
-          tecdsa::sign_internal::SerializePointPair(local_V_i_, local_A_i_));
+          kPhase5ACommitDomain,
+          relation::SerializePointPair(local_V_i_, local_A_i_));
   local_round5a_randomness_ = commit.randomness;
   round5a_ = SignRound5AMsg{.commitment = commit.commitment};
   phase5a_commitments_[cfg_.self_id] = round5a_->commitment;
@@ -368,11 +319,6 @@ std::vector<SignRound2Request> SignParty::MakeRound2Requests(
     phase1_commitments_[peer] = msg.commitment;
   }
 
-  std::unordered_set<std::string> reserved_instance_keys;
-  reserved_instance_keys.reserve(ExpectedPhase2MessageCount(peers_));
-
-  const BigInt local_n = cfg_.local_key_share.paillier->modulus_n_bigint();
-  const BigInt local_k_value = local_k_i_.mp_value();
   for (PartyIndex peer : peers_) {
     const auto aux_it = cfg_.public_keygen_data.all_aux_rsa_params.find(peer);
     if (aux_it == cfg_.public_keygen_data.all_aux_rsa_params.end()) {
@@ -380,37 +326,14 @@ std::vector<SignRound2Request> SignParty::MakeRound2Requests(
     }
 
     for (MtaType type : {MtaType::kTimesGamma, MtaType::kTimesW}) {
-      Bytes instance_id = tecdsa::sign_internal::RandomMtaInstanceId();
-      std::string instance_key = tecdsa::sign_internal::BytesToKey(instance_id);
-      while (phase2_initiator_instances_.contains(instance_key) ||
-             reserved_instance_keys.contains(instance_key)) {
-        instance_id = tecdsa::sign_internal::RandomMtaInstanceId();
-        instance_key = tecdsa::sign_internal::BytesToKey(instance_id);
-      }
-      reserved_instance_keys.insert(instance_key);
-
-      const PaillierCiphertextWithRandomBigInt encrypted =
-          cfg_.local_key_share.paillier->EncryptWithRandomBigInt(local_k_value);
-      const A1RangeProof a1_proof =
-          ProveA1Range(cfg_.session_id, cfg_.self_id, peer, instance_id,
-                       local_n, aux_it->second, encrypted.ciphertext,
-                       local_k_value, encrypted.randomness);
-
-      round2_requests_.push_back(SignRound2Request{
-          .from = cfg_.self_id,
-          .to = peer,
-          .type = type,
-          .instance_id = instance_id,
-          .c1 = encrypted.ciphertext,
-          .a1_proof = a1_proof,
+      const auto request = phase2_session_.CreateRequest({
+          .responder_id = peer,
+          .type = ToCoreMtaType(type),
+          .initiator_paillier = cfg_.local_key_share.paillier.get(),
+          .responder_aux = &aux_it->second,
+          .initiator_secret = local_k_i_,
       });
-      phase2_initiator_instances_.emplace(instance_key,
-                                          Phase2InitiatorInstance{
-                                              .responder = peer,
-                                              .type = type,
-                                              .instance_id = instance_id,
-                                              .c1 = encrypted.ciphertext,
-                                          });
+      round2_requests_.push_back(ToProtocolRequest(request));
     }
   }
 
@@ -426,7 +349,8 @@ std::vector<SignRound2Response> SignParty::MakeRound2Responses(
     TECDSA_THROW_LOGIC(
         "MakeRound2Requests must be completed before MakeRound2Responses");
   }
-  if (requests_for_self.size() != ExpectedPhase2MessageCount(peers_)) {
+  if (requests_for_self.size() !=
+      mta::ExpectedPairwiseProductMessageCount(peers_.size())) {
     TECDSA_THROW_ARGUMENT(
         "requests_for_self must contain exactly one request per peer/type");
   }
@@ -445,29 +369,19 @@ std::vector<SignRound2Response> SignParty::MakeRound2Responses(
     if (request.to != cfg_.self_id) {
       TECDSA_THROW_ARGUMENT("round2 request must target self");
     }
-    if (request.instance_id.size() !=
-        tecdsa::sign_internal::kMtaInstanceIdLen) {
+    if (request.instance_id.size() != mta::kMtaInstanceIdLen) {
       TECDSA_THROW_ARGUMENT("round2 request instance id has invalid length");
     }
 
     const std::string request_key =
-        tecdsa::sign_internal::MakeResponderRequestKey(
-            request.from, static_cast<uint8_t>(request.type));
+        mta::MakeResponderRequestKey(request.from, ToCoreMtaType(request.type));
     if (!seen_request_keys.insert(request_key).second) {
       TECDSA_THROW_ARGUMENT("duplicate round2 request for sender/type");
     }
 
-    const std::string instance_key =
-        tecdsa::sign_internal::BytesToKey(request.instance_id);
+    const std::string instance_key = mta::BytesToKey(request.instance_id);
     if (!seen_instance_keys.insert(instance_key).second) {
       TECDSA_THROW_ARGUMENT("duplicate round2 request instance id");
-    }
-
-    const BigInt n =
-        cfg_.public_keygen_data.all_paillier_public.at(request.from).n;
-    const BigInt n2 = n * n;
-    if (request.c1 < 0 || request.c1 >= n2) {
-      TECDSA_THROW_ARGUMENT("round2 request ciphertext c1 is out of range");
     }
 
     const auto self_aux_it =
@@ -475,59 +389,34 @@ std::vector<SignRound2Response> SignParty::MakeRound2Responses(
     if (self_aux_it == cfg_.public_keygen_data.all_aux_rsa_params.end()) {
       TECDSA_THROW_LOGIC("missing responder auxiliary parameters");
     }
-    if (!VerifyA1Range(cfg_.session_id, request.from, cfg_.self_id,
-                       request.instance_id, n, self_aux_it->second, request.c1,
-                       request.a1_proof)) {
-      TECDSA_THROW_ARGUMENT("round2 A1 proof verification failed");
-    }
 
     const Scalar witness =
         (request.type == MtaType::kTimesGamma) ? local_gamma_i_ : local_w_i_;
-    const BigInt y =
-        tecdsa::sign_internal::RandomBelow(tecdsa::sign_internal::QPow5());
-    const BigInt r_b = tecdsa::sign_internal::SampleZnStar(n);
-    const BigInt gamma = n + BigInt(1);
-    const BigInt c1_pow_x =
-        tecdsa::sign_internal::PowMod(request.c1, witness.mp_value(), n2);
-    const BigInt gamma_pow_y = tecdsa::sign_internal::PowMod(gamma, y, n2);
-    const BigInt r_pow_n = tecdsa::sign_internal::PowMod(r_b, n, n2);
-    const BigInt c2 = tecdsa::sign_internal::MulMod(
-        tecdsa::sign_internal::MulMod(c1_pow_x, gamma_pow_y, n2), r_pow_n, n2);
+    const auto initiator_aux_it =
+        cfg_.public_keygen_data.all_aux_rsa_params.find(request.from);
+    if (initiator_aux_it == cfg_.public_keygen_data.all_aux_rsa_params.end()) {
+      TECDSA_THROW_LOGIC("missing initiator auxiliary parameters");
+    }
+    const auto consume_result = phase2_session_.ConsumeRequest(
+        ToCoreRequest(request),
+        {.initiator_modulus_n =
+             cfg_.public_keygen_data.all_paillier_public.at(request.from).n,
+         .responder_aux = &self_aux_it->second,
+         .initiator_aux = &initiator_aux_it->second,
+         .responder_secret = witness,
+         .public_witness_point =
+             (request.type == MtaType::kTimesW)
+                 ? std::optional<ECPoint>(w_points_.at(cfg_.self_id))
+                 : std::nullopt});
 
-    const Scalar responder_share(-y);
+    const Scalar responder_share = consume_result.responder_share;
     if (request.type == MtaType::kTimesGamma) {
       phase2_mta_responder_sum_ = phase2_mta_responder_sum_ + responder_share;
     } else {
       phase2_mtawc_responder_sum_ =
           phase2_mtawc_responder_sum_ + responder_share;
     }
-
-    SignRound2Response response{
-        .from = cfg_.self_id,
-        .to = request.from,
-        .type = request.type,
-        .instance_id = request.instance_id,
-        .c2 = c2,
-        .a2_proof = std::nullopt,
-        .a3_proof = std::nullopt,
-    };
-
-    const auto initiator_aux_it =
-        cfg_.public_keygen_data.all_aux_rsa_params.find(request.from);
-    if (initiator_aux_it == cfg_.public_keygen_data.all_aux_rsa_params.end()) {
-      TECDSA_THROW_LOGIC("missing initiator auxiliary parameters");
-    }
-    if (request.type == MtaType::kTimesGamma) {
-      response.a3_proof = ProveA3MtA(
-          cfg_.session_id, request.from, cfg_.self_id, request.instance_id, n,
-          initiator_aux_it->second, request.c1, c2, witness.mp_value(), y, r_b);
-    } else {
-      response.a2_proof = ProveA2MtAwc(
-          cfg_.session_id, request.from, cfg_.self_id, request.instance_id, n,
-          initiator_aux_it->second, request.c1, c2, w_points_.at(cfg_.self_id),
-          witness.mp_value(), y, r_b);
-    }
-    out.push_back(std::move(response));
+    out.push_back(ToProtocolResponse(consume_result.response));
   }
 
   round2_responses_ = out;
@@ -543,7 +432,7 @@ SignRound3Msg SignParty::MakeRound3(
     TECDSA_THROW_LOGIC(
         "MakeRound2Responses must be completed before MakeRound3");
   }
-  if (responses_for_self.size() != phase2_initiator_instances_.size()) {
+  if (responses_for_self.size() != phase2_session_.initiator_instance_count()) {
     TECDSA_THROW_ARGUMENT(
         "responses_for_self must contain exactly one response per request");
   }
@@ -553,8 +442,6 @@ SignRound3Msg SignParty::MakeRound3(
   seen_request_keys.reserve(responses_for_self.size());
   seen_instance_keys.reserve(responses_for_self.size());
 
-  const BigInt self_n = cfg_.local_key_share.paillier->modulus_n_bigint();
-  const BigInt self_n2 = self_n * self_n;
   const auto self_aux_it =
       cfg_.public_keygen_data.all_aux_rsa_params.find(cfg_.self_id);
   if (self_aux_it == cfg_.public_keygen_data.all_aux_rsa_params.end()) {
@@ -568,63 +455,39 @@ SignRound3Msg SignParty::MakeRound3(
     if (response.to != cfg_.self_id) {
       TECDSA_THROW_ARGUMENT("round2 response must target self");
     }
-    if (response.instance_id.size() !=
-        tecdsa::sign_internal::kMtaInstanceIdLen) {
+    if (response.instance_id.size() != mta::kMtaInstanceIdLen) {
       TECDSA_THROW_ARGUMENT("round2 response instance id has invalid length");
     }
 
-    const std::string instance_key =
-        tecdsa::sign_internal::BytesToKey(response.instance_id);
+    const std::string instance_key = mta::BytesToKey(response.instance_id);
     if (!seen_instance_keys.insert(instance_key).second) {
       TECDSA_THROW_ARGUMENT("duplicate round2 response instance id");
     }
 
-    const auto instance_it = phase2_initiator_instances_.find(instance_key);
-    if (instance_it == phase2_initiator_instances_.end()) {
-      TECDSA_THROW_ARGUMENT("unknown round2 response instance id");
-    }
-    const Phase2InitiatorInstance& instance = instance_it->second;
+    const auto& instance =
+        phase2_session_.GetInitiatorInstance(response.instance_id);
     if (instance.responder != response.from) {
       TECDSA_THROW_ARGUMENT("round2 response sender mismatch");
     }
-    if (instance.type != response.type) {
+    if (instance.type != ToCoreMtaType(response.type)) {
       TECDSA_THROW_ARGUMENT("round2 response type mismatch");
     }
 
     const std::string request_key =
-        tecdsa::sign_internal::MakeResponderRequestKey(
-            response.from, static_cast<uint8_t>(response.type));
+        mta::MakeResponderRequestKey(response.from,
+                                     ToCoreMtaType(response.type));
     if (!seen_request_keys.insert(request_key).second) {
       TECDSA_THROW_ARGUMENT("duplicate round2 response for sender/type");
     }
-
-    if (response.c2 < 0 || response.c2 >= self_n2) {
-      TECDSA_THROW_ARGUMENT("round2 response ciphertext c2 is out of range");
-    }
-
-    if (response.type == MtaType::kTimesGamma) {
-      if (!response.a3_proof.has_value() || response.a2_proof.has_value()) {
-        TECDSA_THROW_ARGUMENT("round2 MtA response must carry only A3 proof");
-      }
-      if (!VerifyA3MtA(cfg_.session_id, cfg_.self_id, response.from,
-                       response.instance_id, self_n, self_aux_it->second,
-                       instance.c1, response.c2, *response.a3_proof)) {
-        TECDSA_THROW_ARGUMENT("round2 A3 proof verification failed");
-      }
-    } else {
-      if (!response.a2_proof.has_value() || response.a3_proof.has_value()) {
-        TECDSA_THROW_ARGUMENT("round2 MtAwc response must carry only A2 proof");
-      }
-      if (!VerifyA2MtAwc(cfg_.session_id, cfg_.self_id, response.from,
-                         response.instance_id, self_n, self_aux_it->second,
-                         instance.c1, response.c2, w_points_.at(response.from),
-                         *response.a2_proof)) {
-        TECDSA_THROW_ARGUMENT("round2 A2 proof verification failed");
-      }
-    }
-
-    const Scalar initiator_share(
-        cfg_.local_key_share.paillier->DecryptBigInt(response.c2));
+    const auto consume_result = phase2_session_.ConsumeResponse(
+        ToCoreResponse(response),
+        {.initiator_paillier = cfg_.local_key_share.paillier.get(),
+         .initiator_aux = &self_aux_it->second,
+         .public_witness_point =
+             (response.type == MtaType::kTimesW)
+                 ? std::optional<ECPoint>(w_points_.at(response.from))
+                 : std::nullopt});
+    const Scalar initiator_share = consume_result.initiator_share;
     if (response.type == MtaType::kTimesGamma) {
       phase2_mta_initiator_sum_ = phase2_mta_initiator_sum_ + initiator_share;
     } else {
@@ -659,8 +522,7 @@ SignRound4Msg SignParty::MakeRound4(const PeerMap<SignRound3Msg>& peer_round3) {
     TECDSA_THROW_ARGUMENT("aggregated delta is zero");
   }
 
-  const std::optional<Scalar> delta_inv =
-      tecdsa::sign_internal::InvertScalar(delta);
+  const std::optional<Scalar> delta_inv = TryInvertScalar(delta);
   if (!delta_inv.has_value()) {
     TECDSA_THROW_ARGUMENT("failed to invert aggregated delta");
   }
@@ -697,7 +559,7 @@ SignRound5AMsg SignParty::MakeRound5A(
       TECDSA_THROW_LOGIC("missing stored round1 commitment for peer");
     }
     if (!core::commitment::VerifyCommitment(
-            tecdsa::sign_internal::kPhase1CommitDomain,
+            kPhase1CommitDomain,
             msg.gamma_i.ToCompressedBytes(), msg.randomness,
             commitment_it->second)) {
       TECDSA_THROW_ARGUMENT(
@@ -750,8 +612,8 @@ SignRound5BMsg SignParty::MakeRound5B(
       .a_schnorr_proof = core::proof::BuildSchnorrProof(
           cfg_.session_id, cfg_.self_id, local_A_i_, local_rho_i_),
       .v_relation_proof =
-          BuildVRelationProof(cfg_.session_id, cfg_.self_id, R_, local_V_i_,
-                              local_s_i_, local_l_i_),
+          relation::BuildVRelationProof(cfg_.session_id, cfg_.self_id, R_,
+                                        local_V_i_, local_s_i_, local_l_i_),
   };
   return *round5b_;
 }
@@ -783,8 +645,8 @@ SignRound5CMsg SignParty::MakeRound5C(
     }
 
     if (!core::commitment::VerifyCommitment(
-            tecdsa::sign_internal::kPhase5ACommitDomain,
-            tecdsa::sign_internal::SerializePointPair(msg.V_i, msg.A_i),
+            kPhase5ACommitDomain,
+            relation::SerializePointPair(msg.V_i, msg.A_i),
             msg.randomness, commitment_it->second)) {
       TECDSA_THROW_ARGUMENT(
           "round5B opening does not match round5A commitment");
@@ -793,8 +655,8 @@ SignRound5CMsg SignParty::MakeRound5C(
                                          msg.a_schnorr_proof)) {
       TECDSA_THROW_ARGUMENT("round5B A_i Schnorr proof verification failed");
     }
-    if (!VerifyVRelationProof(cfg_.session_id, peer, R_, msg.V_i,
-                              msg.v_relation_proof)) {
+    if (!relation::VerifyVRelationProof(cfg_.session_id, peer, R_, msg.V_i,
+                                        msg.v_relation_proof)) {
       TECDSA_THROW_ARGUMENT("round5B V relation proof verification failed");
     }
 
@@ -818,8 +680,8 @@ SignRound5CMsg SignParty::MakeRound5C(
 
   const core::commitment::CommitmentResult commit =
       core::commitment::CommitMessage(
-          tecdsa::sign_internal::kPhase5CCommitDomain,
-          tecdsa::sign_internal::SerializePointPair(local_U_i_, local_T_i_));
+          kPhase5CCommitDomain,
+          relation::SerializePointPair(local_U_i_, local_T_i_));
   local_round5c_randomness_ = commit.randomness;
   round5c_ = SignRound5CMsg{.commitment = commit.commitment};
   phase5c_commitments_[cfg_.self_id] = round5c_->commitment;
@@ -875,8 +737,8 @@ Scalar SignParty::RevealRound5E(const PeerMap<SignRound5DMsg>& peer_round5d) {
       TECDSA_THROW_LOGIC("missing stored round5C commitment for peer");
     }
     if (!core::commitment::VerifyCommitment(
-            tecdsa::sign_internal::kPhase5CCommitDomain,
-            tecdsa::sign_internal::SerializePointPair(msg.U_i, msg.T_i),
+            kPhase5CCommitDomain,
+            relation::SerializePointPair(msg.U_i, msg.T_i),
             msg.randomness, commitment_it->second)) {
       TECDSA_THROW_ARGUMENT(
           "round5D opening does not match round5C commitment");

@@ -44,6 +44,8 @@ add_library(tecdsa_core
   core/algebra/scalar.cc
   core/algebra/point.cc
   core/encoding/encoding.cc
+  core/mta/proofs.cc
+  core/mta/session.cc
   core/commitment/commitment.cc
   core/transcript/transcript.cc
   core/participant/participant_set.cc
@@ -66,6 +68,7 @@ add_library(tecdsa_core
   crypto/strict_proofs_math.cc
   crypto/strict_proofs.cc
   crypto/transcript.cc
+  ecdsa/sign/relation_proofs.cc
   protocol/proto_common.cc
   protocol/proto_sign_internal.cc
   protocol/keygen.cc
