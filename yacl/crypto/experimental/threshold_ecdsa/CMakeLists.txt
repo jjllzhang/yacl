@@ -39,7 +39,7 @@ if(NOT LIBTOMMATH_INCLUDE_DIR)
     "Use Bazel inside the YACL repo, or provide libtommath via CMAKE_PREFIX_PATH/CPATH.")
 endif()
 
-add_library(tecdsa_core
+set(TSIG_CORE_SRCS
   core/suite/group_context.cc
   core/algebra/scalar.cc
   core/algebra/point.cc
@@ -58,7 +58,6 @@ add_library(tecdsa_core
   core/vss/dealerless_dkg.cc
   crypto/scalar.cc
   crypto/ec_point.cc
-  crypto/ecdsa_verify.cc
   crypto/hash.cc
   crypto/random.cc
   crypto/commitment.cc
@@ -68,6 +67,10 @@ add_library(tecdsa_core
   crypto/strict_proofs_math.cc
   crypto/strict_proofs.cc
   crypto/transcript.cc
+)
+
+set(TSIG_ECDSA_SRCS
+  crypto/ecdsa_verify.cc
   ecdsa/keygen/keygen.cc
   ecdsa/sign/sign.cc
   ecdsa/verify/verify.cc
@@ -78,7 +81,9 @@ add_library(tecdsa_core
   protocol/sign.cc
 )
 
-target_include_directories(tecdsa_core PUBLIC
+add_library(tsig_core ${TSIG_CORE_SRCS})
+
+target_include_directories(tsig_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../../
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${ABSL_INCLUDE_DIR}
@@ -86,28 +91,39 @@ target_include_directories(tecdsa_core PUBLIC
 )
 
 if(OpenSSL_FOUND)
-  target_link_libraries(tecdsa_core PUBLIC OpenSSL::Crypto)
+  target_link_libraries(tsig_core PUBLIC OpenSSL::Crypto)
 else()
-  target_link_libraries(tecdsa_core PUBLIC crypto)
+  target_link_libraries(tsig_core PUBLIC crypto)
 endif()
 
-add_library(tecdsa_m0 ALIAS tecdsa_core)
+add_library(tsig_ecdsa ${TSIG_ECDSA_SRCS})
+target_include_directories(tsig_ecdsa PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../../
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${ABSL_INCLUDE_DIR}
+  ${LIBTOMMATH_INCLUDE_DIR}
+)
+target_link_libraries(tsig_ecdsa PUBLIC tsig_core)
+
+# Preserve legacy consumer names while switching the canonical target graph.
+add_library(tecdsa_core ALIAS tsig_ecdsa)
+add_library(tecdsa_m0 ALIAS tsig_ecdsa)
 
 add_executable(crypto_primitives_tests tests/crypto_primitives_test.cc)
-target_link_libraries(crypto_primitives_tests PRIVATE tecdsa_core)
+target_link_libraries(crypto_primitives_tests PRIVATE tsig_ecdsa)
 
 add_executable(keygen_flow_tests
   tests/keygen_flow_test.cc
   tests/sign_flow_test_support.cc
 )
-target_link_libraries(keygen_flow_tests PRIVATE tecdsa_core)
+target_link_libraries(keygen_flow_tests PRIVATE tsig_ecdsa)
 
 add_executable(sign_flow_tests
   tests/sign_flow_test.cc
   tests/sign_flow_test_cases.cc
   tests/sign_flow_test_support.cc
 )
-target_link_libraries(sign_flow_tests PRIVATE tecdsa_core)
+target_link_libraries(sign_flow_tests PRIVATE tsig_ecdsa)
 
 enable_testing()
 add_test(NAME crypto_primitives_tests COMMAND crypto_primitives_tests)

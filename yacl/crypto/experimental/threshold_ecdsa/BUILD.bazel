@@ -18,35 +18,77 @@ package(default_visibility = ["//visibility:public"])
 
 TECDSA_COPTS = ["-std=gnu++20"]
 
-TECDSA_CORE_SRCS = glob([
+TSIG_CORE_SRCS = glob([
     "core/**/*.cc",
     "crypto/*.cc",
-    "ecdsa/**/*.cc",
-    "protocol/*.cc",
-])
+], exclude = [
+    "crypto/ecdsa_verify.cc",
+]) + [
+    "protocol/proto_common.cc",
+    "protocol/proto_sign_internal.cc",
+]
 
-TECDSA_CORE_HDRS = glob([
+TSIG_CORE_HDRS = glob([
     "common/*.h",
     "core/**/*.h",
     "crypto/*.h",
-    "ecdsa/**/*.h",
-    "protocol/*.h",
-])
+], exclude = [
+    "crypto/ecdsa_verify.h",
+]) + [
+    # Stage6 still leaves a few core-facing headers typed in terms of the
+    # compatibility message structs, so keep them visible from tsig_core.
+    "ecdsa/sign/relation_proofs.h",
+    "protocol/messages.h",
+    "protocol/proto_common.h",
+    "protocol/proto_sign_internal.h",
+    "protocol/types.h",
+]
 
-TECDSA_CORE_DEPS = [
+TSIG_ECDSA_SRCS = glob([
+    "ecdsa/**/*.cc",
+]) + [
+    "crypto/ecdsa_verify.cc",
+    "protocol/keygen.cc",
+    "protocol/sign.cc",
+]
+
+TSIG_ECDSA_HDRS = glob([
+    "ecdsa/**/*.h",
+]) + [
+    "crypto/ecdsa_verify.h",
+    "protocol/keygen.h",
+    "protocol/sign.h",
+]
+
+TSIG_COMMON_DEPS = [
     "//yacl/crypto/ecc/openssl:openssl",
     # Big integer backend used across scalar/paillier/proof/protocol code paths.
     "//yacl/math/mpint",
 ]
 
 yacl_cc_library(
-    name = "tecdsa_core",
-    srcs = TECDSA_CORE_SRCS,
-    hdrs = TECDSA_CORE_HDRS,
+    name = "tsig_core",
+    srcs = TSIG_CORE_SRCS,
+    hdrs = TSIG_CORE_HDRS,
     copts = TECDSA_COPTS,
-    deps = TECDSA_CORE_DEPS + [
+    deps = TSIG_COMMON_DEPS + [
         "//yacl/base:exception",
     ],
+)
+
+yacl_cc_library(
+    name = "tsig_ecdsa",
+    srcs = TSIG_ECDSA_SRCS,
+    hdrs = TSIG_ECDSA_HDRS,
+    copts = TECDSA_COPTS,
+    deps = [
+        ":tsig_core",
+    ],
+)
+
+alias(
+    name = "tecdsa_core",
+    actual = ":tsig_ecdsa",
 )
 
 alias(

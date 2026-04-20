@@ -42,8 +42,9 @@ deployment.
 ```text
 core/          # stage-1 suite/algebra groundwork for shared threshold-signature code
 common/        # bytes/error helpers
-crypto/        # compatibility wrappers plus Paillier/hash/commitment/encoding/transcript/proofs
-protocol/      # round-driven ECDSA keygen/sign prototype API
+crypto/        # compatibility wrappers plus shared Paillier/hash/encoding/transcript/proof helpers
+ecdsa/         # ECDSA-specific keygen/sign/verify orchestration
+protocol/      # legacy proto namespace shims kept for compatibility
 tests/
   crypto_primitives_test.cc
   keygen_flow_test.cc
@@ -71,14 +72,31 @@ toolchain.
 
 ```bash
 cmake -S yacl/crypto/experimental/threshold_ecdsa -B /tmp/tecdsa-cmake
-cmake --build /tmp/tecdsa-cmake -j
+cmake --build /tmp/tecdsa-cmake --target tsig_core tsig_ecdsa -j
 ```
+
+Canonical CMake targets:
+
+- `tsig_core`: shared threshold-signature building blocks (`core/` plus shared
+  compatibility facades in `crypto/`).
+- `tsig_ecdsa`: ECDSA scheme layer plus legacy `protocol/` shims; links
+  `tsig_core`.
+- `tecdsa_core`: compatibility alias to `tsig_ecdsa`.
+- `tecdsa_m0`: legacy compatibility alias retained as an alias to
+  `tsig_ecdsa`.
 
 ### Bazel
 
+Canonical stage-7 naming is `:tsig_core` and `:tsig_ecdsa`, with
+`:tecdsa_core` kept as the compatibility name and `:tecdsa_m0` retained as the
+legacy alias.
+
 ```bash
 bazelisk --output_user_root=/tmp/bazel_zjl query //yacl/crypto/experimental/threshold_ecdsa:all
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tsig_core
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tsig_ecdsa
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_core
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_m0
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:crypto_primitives_tests
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:keygen_flow_tests
 bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:sign_flow_tests
@@ -88,7 +106,7 @@ If your environment resolves `rules_foreign_cc` to `built_make` and fails on
 `BootstrapGNUMake`, run with one-off toolchain flags:
 
 ```bash
-bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tecdsa_core \
+bazelisk --output_user_root=/tmp/bazel_zjl build //yacl/crypto/experimental/threshold_ecdsa:tsig_ecdsa \
   --extra_toolchains=@rules_foreign_cc//toolchains:preinstalled_make_toolchain,@rules_foreign_cc//toolchains:preinstalled_pkgconfig_toolchain
 ```
 
