@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
 
 namespace tecdsa::proto {
@@ -34,25 +34,8 @@ template <typename T>
 void RequireExactlyPeers(const PeerMap<T>& messages,
                          const std::vector<PartyIndex>& participants,
                          PartyIndex self_id, const char* field_name) {
-  size_t expected = 0;
-  for (PartyIndex party : participants) {
-    if (party != self_id) {
-      ++expected;
-    }
-  }
-  if (messages.size() != expected) {
-    TECDSA_THROW_ARGUMENT(std::string(field_name) +
-                          " must contain exactly one entry per peer");
-  }
-  for (PartyIndex party : participants) {
-    if (party == self_id) {
-      continue;
-    }
-    if (!messages.contains(party)) {
-      TECDSA_THROW_ARGUMENT(std::string(field_name) +
-                            " is missing a peer message");
-    }
-  }
+  core::participant::RequireExactlyPeers(messages, participants, self_id,
+                                         field_name);
 }
 
 Scalar RandomNonZeroScalar();

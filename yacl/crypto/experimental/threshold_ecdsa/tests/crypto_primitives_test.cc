@@ -16,13 +16,18 @@
 #include <iostream>
 #include <span>
 #include <stdexcept>
+#include <unordered_map>
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
@@ -46,6 +51,7 @@ using tecdsa::DecodeMpInt;
 using tecdsa::ECPoint;
 using tecdsa::EncodeMpInt;
 using tecdsa::PaillierProvider;
+using tecdsa::PartyIndex;
 using tecdsa::Scalar;
 using tecdsa::Sha256;
 using tecdsa::Transcript;
@@ -91,7 +97,8 @@ void TestStage1SuiteMetadata() {
 void TestCoreAlgebraCompatibility() {
   const tecdsa::core::Scalar core_two = tecdsa::core::Scalar::FromUint64(2);
   const tecdsa::core::Scalar core_three = tecdsa::core::Scalar::FromUint64(3);
-  const tecdsa::core::Point core_g2 = tecdsa::core::Point::GeneratorMultiply(core_two);
+  const tecdsa::core::Point core_g2 =
+      tecdsa::core::Point::GeneratorMultiply(core_two);
   const tecdsa::core::Point core_g3 =
       tecdsa::core::Point::GeneratorMultiply(core_three);
 
@@ -105,6 +112,81 @@ void TestCoreAlgebraCompatibility() {
          "compat ECPoint alias must match core::Point encoding");
   Expect(core_g3.ToCompressedBytes() == compat_g3.ToCompressedBytes(),
          "core::Point arithmetic must match legacy ECPoint behavior");
+}
+
+void TestStage2ParticipantAndVssHelpers() {
+  const std::vector<PartyIndex> participants = {1, 2, 3};
+  tecdsa::core::participant::ValidateParticipantsOrThrow(
+      participants, /*self_id=*/2, "stage2 test");
+  const auto participant_set = tecdsa::core::participant::BuildParticipantSet(
+      participants, /*self_id=*/2, "stage2 test");
+  Expect(participant_set.peers == std::vector<PartyIndex>({1, 3}),
+         "participant_set must derive peers without self");
+
+  std::unordered_map<PartyIndex, uint32_t> ok_messages = {
+      {1, 10},
+      {3, 30},
+  };
+  tecdsa::core::participant::RequireExactlyPeers(ok_messages, participants,
+                                                 /*self_id=*/2, "ok_messages");
+  ExpectThrow(
+      [&]() {
+        tecdsa::core::participant::RequireExactlyPeers(
+            std::unordered_map<PartyIndex, uint32_t>{{1, 10}}, participants,
+            /*self_id=*/2, "bad_messages");
+      },
+      "RequireExactlyPeers must reject missing peers");
+
+  const std::vector<Scalar> polynomial = {
+      Scalar::FromUint64(5),
+      Scalar::FromUint64(7),
+  };
+  const Scalar share_for_two =
+      tecdsa::core::vss::EvaluatePolynomialAt(polynomial, /*party_id=*/2);
+  Expect(share_for_two == Scalar::FromUint64(19),
+         "EvaluatePolynomialAt must evaluate the linear polynomial at x=2");
+
+  const auto commitments = tecdsa::core::vss::BuildCommitments(polynomial);
+  Expect(tecdsa::core::vss::VerifyShareForReceiver(
+             /*receiver_id=*/2, /*threshold=*/1, commitments, share_for_two),
+         "VerifyShareForReceiver must accept a valid Feldman share");
+  Expect(!tecdsa::core::vss::VerifyShareForReceiver(
+             /*receiver_id=*/2, /*threshold=*/1, commitments,
+             share_for_two + Scalar::FromUint64(1)),
+         "VerifyShareForReceiver must reject a tampered share");
+
+  const auto lagrange =
+      tecdsa::core::vss::ComputeLagrangeAtZero(participants);
+  Expect(lagrange.size() == participants.size(),
+         "ComputeLagrangeAtZero must return all coefficients");
+  Expect(lagrange.at(1) + lagrange.at(2) + lagrange.at(3) ==
+             Scalar::FromUint64(1),
+         "Lagrange coefficients at zero must sum to one");
+
+  const ECPoint sum = tecdsa::core::vss::SumPointsOrThrow(
+      {ECPoint::GeneratorMultiply(Scalar::FromUint64(2)),
+       ECPoint::GeneratorMultiply(Scalar::FromUint64(3))});
+  Expect(sum == ECPoint::GeneratorMultiply(Scalar::FromUint64(5)),
+         "SumPointsOrThrow must aggregate points in the same group");
+}
+
+void TestStage2SchnorrHelpers() {
+  const Bytes session_id = {0x53, 0x32};
+  const Scalar witness = Scalar::FromUint64(9);
+  const ECPoint statement = ECPoint::GeneratorMultiply(witness);
+
+  const auto proof =
+      tecdsa::core::proof::BuildSchnorrProof(session_id, /*prover_id=*/7,
+                                             statement, witness);
+  Expect(tecdsa::core::proof::VerifySchnorrProof(session_id, /*prover_id=*/7,
+                                                 statement, proof),
+         "BuildSchnorrProof output must verify");
+
+  auto tampered = proof;
+  tampered.z = tampered.z + Scalar::FromUint64(1);
+  Expect(!tecdsa::core::proof::VerifySchnorrProof(
+             session_id, /*prover_id=*/7, statement, tampered),
+         "VerifySchnorrProof must reject a tampered response");
 }
 
 void TestMpIntRoundTrip() {
@@ -368,6 +450,8 @@ int main() {
   try {
     TestStage1SuiteMetadata();
     TestCoreAlgebraCompatibility();
+    TestStage2ParticipantAndVssHelpers();
+    TestStage2SchnorrHelpers();
     TestMpIntRoundTrip();
     TestScalarEncodingAndReduction();
     TestPointEncoding();

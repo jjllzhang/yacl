@@ -23,6 +23,10 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ecdsa_verify.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/random.h"
@@ -186,9 +190,10 @@ bool VerifyVRelationProof(const Bytes& session_id, PartyIndex prover_id,
 
 SignParty::SignParty(SignConfig cfg)
     : cfg_(std::move(cfg)),
-      peers_(BuildPeers(cfg_.participants, cfg_.self_id)),
       message_scalar_(Scalar::FromBigEndianModQ(cfg_.msg32)) {
-  ValidateParticipantsOrThrow(cfg_.participants, cfg_.self_id, "SignParty");
+  const auto participant_set = core::participant::BuildParticipantSet(
+      cfg_.participants, cfg_.self_id, "SignParty");
+  peers_ = participant_set.peers;
   if (cfg_.msg32.size() != 32) {
     TECDSA_THROW_ARGUMENT("msg32 must be exactly 32 bytes for SignParty");
   }
@@ -262,7 +267,7 @@ SignParty::SignParty(SignConfig cfg)
 const SignConfig& SignParty::config() const { return cfg_; }
 
 void SignParty::PrepareResharedSigningShares() {
-  lagrange_coefficients_ = ComputeLagrangeAtZero(cfg_.participants);
+  lagrange_coefficients_ = core::vss::ComputeLagrangeAtZero(cfg_.participants);
 
   const auto lambda_self_it = lagrange_coefficients_.find(cfg_.self_id);
   if (lambda_self_it == lagrange_coefficients_.end()) {
@@ -291,7 +296,7 @@ void SignParty::PrepareResharedSigningShares() {
   }
 
   try {
-    const ECPoint reconstructed_y = SumPointsOrThrow(w_points);
+    const ECPoint reconstructed_y = core::vss::SumPointsOrThrow(w_points);
     if (reconstructed_y != cfg_.public_keygen_data.y) {
       TECDSA_THROW_ARGUMENT("W_i aggregation does not reconstruct y");
     }
@@ -306,8 +311,8 @@ void SignParty::EnsurePhase1Prepared() {
     return;
   }
 
-  local_k_i_ = RandomNonZeroScalar();
-  local_gamma_i_ = RandomNonZeroScalar();
+  local_k_i_ = core::vss::RandomNonZeroScalar();
+  local_gamma_i_ = core::vss::RandomNonZeroScalar();
   local_Gamma_i_ = ECPoint::GeneratorMultiply(local_gamma_i_);
 
   const CommitmentResult commit =
@@ -324,8 +329,8 @@ void SignParty::EnsureRound5ASharePrepared() {
   }
 
   local_s_i_ = (message_scalar_ * local_k_i_) + (r_ * local_sigma_i_);
-  local_l_i_ = RandomNonZeroScalar();
-  local_rho_i_ = RandomNonZeroScalar();
+  local_l_i_ = core::vss::RandomNonZeroScalar();
+  local_rho_i_ = core::vss::RandomNonZeroScalar();
 
   local_V_i_ = ECPoint::GeneratorMultiply(local_l_i_);
   if (local_s_i_.value() != 0) {
@@ -663,8 +668,8 @@ SignRound4Msg SignParty::MakeRound4(const PeerMap<SignRound3Msg>& peer_round3) {
   round4_ = SignRound4Msg{
       .gamma_i = local_Gamma_i_,
       .randomness = local_round1_randomness_,
-      .gamma_proof = BuildSchnorrProof(cfg_.session_id, cfg_.self_id,
-                                       local_Gamma_i_, local_gamma_i_),
+      .gamma_proof = core::proof::BuildSchnorrProof(
+          cfg_.session_id, cfg_.self_id, local_Gamma_i_, local_gamma_i_),
   };
   return *round4_;
 }
@@ -696,15 +701,15 @@ SignRound5AMsg SignParty::MakeRound5A(
       TECDSA_THROW_ARGUMENT(
           "round4 gamma opening does not match round1 commitment");
     }
-    if (!VerifySchnorrProof(cfg_.session_id, peer, msg.gamma_i,
-                            msg.gamma_proof)) {
+    if (!core::proof::VerifySchnorrProof(cfg_.session_id, peer, msg.gamma_i,
+                                         msg.gamma_proof)) {
       TECDSA_THROW_ARGUMENT("round4 gamma Schnorr proof verification failed");
     }
     gamma_points.push_back(msg.gamma_i);
   }
 
   try {
-    gamma_ = SumPointsOrThrow(gamma_points);
+    gamma_ = core::vss::SumPointsOrThrow(gamma_points);
     R_ = gamma_.Mul(delta_inv_);
   } catch (const std::exception& ex) {
     TECDSA_THROW_ARGUMENT(std::string("failed to compute R in round5A: ") +
@@ -740,8 +745,8 @@ SignRound5BMsg SignParty::MakeRound5B(
       .V_i = local_V_i_,
       .A_i = local_A_i_,
       .randomness = local_round5a_randomness_,
-      .a_schnorr_proof = BuildSchnorrProof(cfg_.session_id, cfg_.self_id,
-                                           local_A_i_, local_rho_i_),
+      .a_schnorr_proof = core::proof::BuildSchnorrProof(
+          cfg_.session_id, cfg_.self_id, local_A_i_, local_rho_i_),
       .v_relation_proof =
           BuildVRelationProof(cfg_.session_id, cfg_.self_id, R_, local_V_i_,
                               local_s_i_, local_l_i_),
@@ -782,8 +787,8 @@ SignRound5CMsg SignParty::MakeRound5C(
       TECDSA_THROW_ARGUMENT(
           "round5B opening does not match round5A commitment");
     }
-    if (!VerifySchnorrProof(cfg_.session_id, peer, msg.A_i,
-                            msg.a_schnorr_proof)) {
+    if (!core::proof::VerifySchnorrProof(cfg_.session_id, peer, msg.A_i,
+                                         msg.a_schnorr_proof)) {
       TECDSA_THROW_ARGUMENT("round5B A_i Schnorr proof verification failed");
     }
     if (!VerifyVRelationProof(cfg_.session_id, peer, R_, msg.V_i,
@@ -796,8 +801,8 @@ SignRound5CMsg SignParty::MakeRound5C(
   }
 
   try {
-    V_ = SumPointsOrThrow(v_points);
-    A_ = SumPointsOrThrow(a_points);
+    V_ = core::vss::SumPointsOrThrow(v_points);
+    A_ = core::vss::SumPointsOrThrow(a_points);
     if (message_scalar_.value() != 0) {
       V_ = V_.Add(ECPoint::GeneratorMultiply(Scalar() - message_scalar_));
     }
@@ -878,8 +883,8 @@ Scalar SignParty::RevealRound5E(const PeerMap<SignRound5DMsg>& peer_round5d) {
   }
 
   try {
-    const ECPoint sum_u = SumPointsOrThrow(u_points);
-    const ECPoint sum_t = SumPointsOrThrow(t_points);
+    const ECPoint sum_u = core::vss::SumPointsOrThrow(u_points);
+    const ECPoint sum_t = core::vss::SumPointsOrThrow(t_points);
     if (sum_u != sum_t) {
       TECDSA_THROW_ARGUMENT("round5D consistency check failed");
     }

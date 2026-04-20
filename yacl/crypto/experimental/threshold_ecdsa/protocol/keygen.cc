@@ -18,7 +18,10 @@
 #include <exception>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/encoding.h"
 
@@ -32,9 +35,10 @@ constexpr char kKeygenPhase1CommitDomain[] = "GG2019/keygen/phase1";
 
 }  // namespace
 
-KeygenParty::KeygenParty(KeygenConfig cfg)
-    : cfg_(std::move(cfg)), peers_(BuildPeers(cfg_.participants, cfg_.self_id)) {
-  ValidateParticipantsOrThrow(cfg_.participants, cfg_.self_id, "KeygenParty");
+KeygenParty::KeygenParty(KeygenConfig cfg) : cfg_(std::move(cfg)) {
+  const auto participant_set = core::participant::BuildParticipantSet(
+      cfg_.participants, cfg_.self_id, "KeygenParty");
+  peers_ = participant_set.peers;
   if (cfg_.threshold >= cfg_.participants.size()) {
     TECDSA_THROW_ARGUMENT("threshold must be less than participant count");
   }
@@ -56,16 +60,17 @@ void KeygenParty::EnsureLocalPolynomialPrepared() {
   while (true) {
     std::vector<Scalar> candidate_coefficients;
     candidate_coefficients.reserve(cfg_.threshold + 1);
-    candidate_coefficients.push_back(RandomNonZeroScalar());
+    candidate_coefficients.push_back(core::vss::RandomNonZeroScalar());
     for (uint32_t i = 0; i < cfg_.threshold; ++i) {
-      candidate_coefficients.push_back(RandomNonZeroScalar());
+      candidate_coefficients.push_back(core::vss::RandomNonZeroScalar());
     }
 
     PeerMap<Scalar> candidate_shares;
     candidate_shares.reserve(cfg_.participants.size());
     bool has_zero_share = false;
     for (PartyIndex party : cfg_.participants) {
-      const Scalar share = EvaluatePolynomialAt(candidate_coefficients, party);
+      const Scalar share =
+          core::vss::EvaluatePolynomialAt(candidate_coefficients, party);
       if (share.value() == 0) {
         has_zero_share = true;
         break;
@@ -81,13 +86,8 @@ void KeygenParty::EnsureLocalPolynomialPrepared() {
     break;
   }
 
-  local_y_i_ = ECPoint::GeneratorMultiply(local_poly_coefficients_.front());
-
-  local_vss_commitments_.clear();
-  local_vss_commitments_.reserve(local_poly_coefficients_.size());
-  for (const Scalar& coefficient : local_poly_coefficients_) {
-    local_vss_commitments_.push_back(ECPoint::GeneratorMultiply(coefficient));
-  }
+  local_vss_commitments_ = core::vss::BuildCommitments(local_poly_coefficients_);
+  local_y_i_ = local_vss_commitments_.front();
 
   const Bytes y_i_bytes = EncodePoint(local_y_i_);
   const CommitmentResult commit =
@@ -209,29 +209,9 @@ KeygenRound2Out KeygenParty::MakeRound2(
 bool KeygenParty::VerifyDealerShareForSelf(PartyIndex dealer,
                                            const KeygenRound2Broadcast& round2,
                                            const Scalar& share) const {
-  if (share.value() == 0) {
-    return false;
-  }
-  if (round2.commitments.size() != cfg_.threshold + 1 ||
-      round2.commitments.empty()) {
-    return false;
-  }
-
-  try {
-    ECPoint rhs = round2.commitments.front();
-    const BigInt& q = Scalar::ModulusQMpInt();
-    const BigInt self = BigInt(cfg_.self_id);
-    BigInt power = self.Mod(q);
-    for (size_t k = 1; k < round2.commitments.size(); ++k) {
-      rhs = rhs.Add(round2.commitments[k].Mul(Scalar(power)));
-      power = bigint::NormalizeMod(power * self, q);
-    }
-    (void)dealer;
-    const ECPoint lhs = ECPoint::GeneratorMultiply(share);
-    return lhs == rhs;
-  } catch (const std::exception&) {
-    return false;
-  }
+  (void)dealer;
+  return core::vss::VerifyShareForReceiver(cfg_.self_id, cfg_.threshold,
+                                           round2.commitments, share);
 }
 
 KeygenRound3Msg KeygenParty::MakeRound3(
@@ -289,7 +269,7 @@ KeygenRound3Msg KeygenParty::MakeRound3(
 
   local_x_i_ = x_sum;
   try {
-    aggregated_y_ = SumPointsOrThrow(y_points);
+    aggregated_y_ = core::vss::SumPointsOrThrow(y_points);
   } catch (const std::exception& ex) {
     TECDSA_THROW(std::string("failed to aggregate public key points: ") +
                  ex.what());
@@ -298,8 +278,8 @@ KeygenRound3Msg KeygenParty::MakeRound3(
   const ECPoint X_i = ECPoint::GeneratorMultiply(local_x_i_);
   round3_ = KeygenRound3Msg{
       .X_i = X_i,
-      .proof = BuildSchnorrProof(cfg_.session_id, cfg_.self_id, X_i,
-                                 local_x_i_),
+      .proof = core::proof::BuildSchnorrProof(cfg_.session_id, cfg_.self_id,
+                                              X_i, local_x_i_),
       .square_free_proof = local_square_free_proof_,
   };
   return *round3_;
@@ -326,7 +306,8 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound3Msg>& peer_round3) 
 
   for (PartyIndex peer : peers_) {
     const KeygenRound3Msg& msg = peer_round3.at(peer);
-    if (!VerifySchnorrProof(cfg_.session_id, peer, msg.X_i, msg.proof)) {
+    if (!core::proof::VerifySchnorrProof(cfg_.session_id, peer, msg.X_i,
+                                         msg.proof)) {
       TECDSA_THROW_ARGUMENT("peer Schnorr proof verification failed");
     }
     const auto pk_it = all_paillier_public_.find(peer);

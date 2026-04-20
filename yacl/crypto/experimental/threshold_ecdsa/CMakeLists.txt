@@ -43,6 +43,10 @@ add_library(tecdsa_core
   core/suite/group_context.cc
   core/algebra/scalar.cc
   core/algebra/point.cc
+  core/participant/participant_set.cc
+  core/proof/schnorr.cc
+  core/vss/feldman.cc
+  core/vss/dealerless_dkg.cc
   crypto/scalar.cc
   crypto/ec_point.cc
   crypto/ecdsa_verify.cc
