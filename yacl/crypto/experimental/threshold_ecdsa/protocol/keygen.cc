@@ -18,12 +18,12 @@
 #include <exception>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/commitment.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/encoding.h"
 
 namespace tecdsa::proto {
 namespace {
@@ -89,9 +89,9 @@ void KeygenParty::EnsureLocalPolynomialPrepared() {
   local_vss_commitments_ = core::vss::BuildCommitments(local_poly_coefficients_);
   local_y_i_ = local_vss_commitments_.front();
 
-  const Bytes y_i_bytes = EncodePoint(local_y_i_);
-  const CommitmentResult commit =
-      CommitMessage(kKeygenPhase1CommitDomain, y_i_bytes);
+  const Bytes y_i_bytes = core::encoding::EncodePoint(local_y_i_);
+  const core::commitment::CommitmentResult commit =
+      core::commitment::CommitMessage(kKeygenPhase1CommitDomain, y_i_bytes);
   local_commitment_ = commit.commitment;
   local_open_randomness_ = commit.randomness;
 }
@@ -248,9 +248,10 @@ KeygenRound3Msg KeygenParty::MakeRound3(
       TECDSA_THROW_ARGUMENT("peer Feldman commitments do not open to y_i");
     }
 
-    const Bytes y_i_bytes = EncodePoint(msg.y_i);
-    if (!VerifyCommitment(kKeygenPhase1CommitDomain, y_i_bytes, msg.randomness,
-                          commitment_it->second)) {
+    const Bytes y_i_bytes = core::encoding::EncodePoint(msg.y_i);
+    if (!core::commitment::VerifyCommitment(kKeygenPhase1CommitDomain,
+                                            y_i_bytes, msg.randomness,
+                                            commitment_it->second)) {
       TECDSA_THROW_ARGUMENT("peer phase1 commitment verification failed");
     }
 

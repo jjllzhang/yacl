@@ -23,11 +23,11 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ecdsa_verify.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/random.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_sign_internal.h"
@@ -315,9 +315,9 @@ void SignParty::EnsurePhase1Prepared() {
   local_gamma_i_ = core::vss::RandomNonZeroScalar();
   local_Gamma_i_ = ECPoint::GeneratorMultiply(local_gamma_i_);
 
-  const CommitmentResult commit =
-      CommitMessage(tecdsa::sign_internal::kPhase1CommitDomain,
-                    local_Gamma_i_.ToCompressedBytes());
+  const core::commitment::CommitmentResult commit =
+      core::commitment::CommitMessage(tecdsa::sign_internal::kPhase1CommitDomain,
+                                      local_Gamma_i_.ToCompressedBytes());
   local_round1_randomness_ = commit.randomness;
   round1_ = SignRound1Msg{.commitment = commit.commitment};
   phase1_commitments_[cfg_.self_id] = round1_->commitment;
@@ -338,9 +338,10 @@ void SignParty::EnsureRound5ASharePrepared() {
   }
   local_A_i_ = ECPoint::GeneratorMultiply(local_rho_i_);
 
-  const CommitmentResult commit = CommitMessage(
-      tecdsa::sign_internal::kPhase5ACommitDomain,
-      tecdsa::sign_internal::SerializePointPair(local_V_i_, local_A_i_));
+  const core::commitment::CommitmentResult commit =
+      core::commitment::CommitMessage(
+          tecdsa::sign_internal::kPhase5ACommitDomain,
+          tecdsa::sign_internal::SerializePointPair(local_V_i_, local_A_i_));
   local_round5a_randomness_ = commit.randomness;
   round5a_ = SignRound5AMsg{.commitment = commit.commitment};
   phase5a_commitments_[cfg_.self_id] = round5a_->commitment;
@@ -695,9 +696,10 @@ SignRound5AMsg SignParty::MakeRound5A(
     if (commitment_it == phase1_commitments_.end()) {
       TECDSA_THROW_LOGIC("missing stored round1 commitment for peer");
     }
-    if (!VerifyCommitment(tecdsa::sign_internal::kPhase1CommitDomain,
-                          msg.gamma_i.ToCompressedBytes(), msg.randomness,
-                          commitment_it->second)) {
+    if (!core::commitment::VerifyCommitment(
+            tecdsa::sign_internal::kPhase1CommitDomain,
+            msg.gamma_i.ToCompressedBytes(), msg.randomness,
+            commitment_it->second)) {
       TECDSA_THROW_ARGUMENT(
           "round4 gamma opening does not match round1 commitment");
     }
@@ -780,7 +782,7 @@ SignRound5CMsg SignParty::MakeRound5C(
       TECDSA_THROW_LOGIC("missing stored round5A commitment for peer");
     }
 
-    if (!VerifyCommitment(
+    if (!core::commitment::VerifyCommitment(
             tecdsa::sign_internal::kPhase5ACommitDomain,
             tecdsa::sign_internal::SerializePointPair(msg.V_i, msg.A_i),
             msg.randomness, commitment_it->second)) {
@@ -814,9 +816,10 @@ SignRound5CMsg SignParty::MakeRound5C(
                           ex.what());
   }
 
-  const CommitmentResult commit = CommitMessage(
-      tecdsa::sign_internal::kPhase5CCommitDomain,
-      tecdsa::sign_internal::SerializePointPair(local_U_i_, local_T_i_));
+  const core::commitment::CommitmentResult commit =
+      core::commitment::CommitMessage(
+          tecdsa::sign_internal::kPhase5CCommitDomain,
+          tecdsa::sign_internal::SerializePointPair(local_U_i_, local_T_i_));
   local_round5c_randomness_ = commit.randomness;
   round5c_ = SignRound5CMsg{.commitment = commit.commitment};
   phase5c_commitments_[cfg_.self_id] = round5c_->commitment;
@@ -871,7 +874,7 @@ Scalar SignParty::RevealRound5E(const PeerMap<SignRound5DMsg>& peer_round5d) {
     if (commitment_it == phase5c_commitments_.end()) {
       TECDSA_THROW_LOGIC("missing stored round5C commitment for peer");
     }
-    if (!VerifyCommitment(
+    if (!core::commitment::VerifyCommitment(
             tecdsa::sign_internal::kPhase5CCommitDomain,
             tecdsa::sign_internal::SerializePointPair(msg.U_i, msg.T_i),
             msg.randomness, commitment_it->second)) {

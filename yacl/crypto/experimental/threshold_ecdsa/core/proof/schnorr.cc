@@ -17,9 +17,9 @@
 #include <exception>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/encoding.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/transcript.h"
 
 namespace tecdsa::core::proof {
 namespace {
@@ -28,15 +28,15 @@ constexpr char kSchnorrProofId[] = "GG2019/Schnorr/v1";
 
 Scalar BuildSchnorrChallenge(const Bytes& session_id, PartyIndex party_id,
                              const ECPoint& statement, const ECPoint& a) {
-  Transcript transcript;
-  const Bytes statement_bytes = EncodePoint(statement);
-  const Bytes a_bytes = EncodePoint(a);
+  transcript::Transcript transcript;
+  const Bytes statement_bytes = encoding::EncodePoint(statement);
+  const Bytes a_bytes = encoding::EncodePoint(a);
   transcript.append_proof_id(kSchnorrProofId);
   transcript.append_session_id(session_id);
   transcript.append_u32_be("party_id", party_id);
   transcript.append_fields({
-      TranscriptFieldRef{.label = "X", .data = statement_bytes},
-      TranscriptFieldRef{.label = "A", .data = a_bytes},
+      transcript::TranscriptFieldRef{.label = "X", .data = statement_bytes},
+      transcript::TranscriptFieldRef{.label = "A", .data = a_bytes},
   });
   return transcript.challenge_scalar_mod_q();
 }

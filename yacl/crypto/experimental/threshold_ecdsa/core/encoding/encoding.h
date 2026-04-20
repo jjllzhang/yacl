@@ -12,4 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/commitment.h"
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <span>
+
+#include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/point.h"
+#include "yacl/math/mpint/mp_int.h"
+
+namespace tecdsa::core::encoding {
+
+using BigInt = yacl::math::MPInt;
+
+Bytes EncodeMpInt(const BigInt& value);
+BigInt DecodeMpInt(std::span<const uint8_t> encoded, size_t max_len = 8192);
+
+Bytes EncodePoint(const Point& point);
+Point DecodePoint(std::span<const uint8_t> encoded);
+
+}  // namespace tecdsa::core::encoding

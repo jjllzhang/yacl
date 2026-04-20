@@ -43,8 +43,15 @@ add_library(tecdsa_core
   core/suite/group_context.cc
   core/algebra/scalar.cc
   core/algebra/point.cc
+  core/encoding/encoding.cc
+  core/commitment/commitment.cc
+  core/transcript/transcript.cc
   core/participant/participant_set.cc
   core/proof/schnorr.cc
+  core/paillier/paillier.cc
+  core/paillier/aux_proofs.cc
+  core/paillier/aux_proofs_codec.cc
+  core/paillier/aux_proofs_math.cc
   core/vss/feldman.cc
   core/vss/dealerless_dkg.cc
   crypto/scalar.cc

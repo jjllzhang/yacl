@@ -22,10 +22,15 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
@@ -187,6 +192,74 @@ void TestStage2SchnorrHelpers() {
   Expect(!tecdsa::core::proof::VerifySchnorrProof(
              session_id, /*prover_id=*/7, statement, tampered),
          "VerifySchnorrProof must reject a tampered response");
+}
+
+void TestStage3CoreCryptoCompatibility() {
+  const BigInt value("12345678901234567890", 10);
+  const Bytes encoded_via_core = tecdsa::core::encoding::EncodeMpInt(value);
+  const Bytes encoded_via_compat = EncodeMpInt(value);
+  Expect(encoded_via_core == encoded_via_compat,
+         "core encoding must preserve MPInt wire format");
+  Expect(tecdsa::core::encoding::DecodeMpInt(encoded_via_core) == value,
+         "core DecodeMpInt must round-trip encoded MPInts");
+
+  tecdsa::core::transcript::Transcript core_transcript;
+  core_transcript.append("a", Bytes{0x10, 0x11});
+  const Bytes expected_bytes = {
+      0x00, 0x00, 0x00, 0x01, 0x61, 0x00,
+      0x00, 0x00, 0x02, 0x10, 0x11,
+  };
+  Expect(core_transcript.bytes() == expected_bytes,
+         "core transcript bytes must keep the existing u32-len encoding");
+
+  Transcript compat_transcript;
+  compat_transcript.append("a", Bytes{0x10, 0x11});
+  Expect(core_transcript.bytes() == compat_transcript.bytes(),
+         "compat transcript alias must match core transcript bytes");
+  Expect(core_transcript.challenge_scalar_mod_q() ==
+             compat_transcript.challenge_scalar_mod_q(),
+         "compat transcript alias must match core transcript challenge");
+
+  const Bytes message = {'s', '3'};
+  const auto core_commit =
+      tecdsa::core::commitment::CommitMessage("stage3", message);
+  Expect(VerifyCommitment("stage3", message, core_commit.randomness,
+                          core_commit.commitment),
+         "legacy commitment verification must accept core commitment output");
+
+  tecdsa::core::paillier::PaillierProvider core_paillier(/*modulus_bits=*/512);
+  Expect(core_paillier.VerifyKeyPair(),
+         "core Paillier provider must generate a valid key pair");
+
+  tecdsa::core::paillier::StrictProofVerifierContext proof_ctx;
+  proof_ctx.session_id = Bytes{0x13, 0x37};
+  proof_ctx.prover_id = 1;
+  const auto aux_params =
+      tecdsa::core::paillier::GenerateAuxRsaParams(/*modulus_bits=*/64,
+                                                   /*party_id=*/1);
+  const auto aux_proof =
+      tecdsa::core::paillier::BuildAuxRsaParamProofStrict(aux_params,
+                                                          proof_ctx);
+  Expect(tecdsa::core::paillier::VerifyAuxRsaParamProofStrict(
+             aux_params, aux_proof, proof_ctx),
+         "core aux proof must verify under the original context");
+
+  auto wrong_ctx = proof_ctx;
+  wrong_ctx.session_id.push_back(0x01);
+  Expect(!tecdsa::core::paillier::VerifyAuxRsaParamProofStrict(
+             aux_params, aux_proof, wrong_ctx),
+         "core aux proof must bind the verifier context");
+
+  const auto square_free =
+      tecdsa::core::paillier::BuildSquareFreeProofGmr98(
+          core_paillier.modulus_n_bigint(),
+          core_paillier.private_lambda_bigint(), proof_ctx);
+  Expect(tecdsa::core::paillier::VerifySquareFreeProofGmr98(
+             core_paillier.modulus_n_bigint(), square_free, proof_ctx),
+         "core square-free proof must verify under the original context");
+  Expect(!tecdsa::core::paillier::VerifySquareFreeProofGmr98(
+             core_paillier.modulus_n_bigint(), square_free, wrong_ctx),
+         "core square-free proof must bind the verifier context");
 }
 
 void TestMpIntRoundTrip() {
@@ -452,6 +525,7 @@ int main() {
     TestCoreAlgebraCompatibility();
     TestStage2ParticipantAndVssHelpers();
     TestStage2SchnorrHelpers();
+    TestStage3CoreCryptoCompatibility();
     TestMpIntRoundTrip();
     TestScalarEncodingAndReduction();
     TestPointEncoding();

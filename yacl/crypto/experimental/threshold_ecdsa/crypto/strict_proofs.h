@@ -15,62 +15,27 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
-#include <span>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/types.h"
-#include "yacl/math/mpint/mp_int.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 
 namespace tecdsa {
 
-using BigInt = yacl::math::MPInt;
-
-struct StrictProofVerifierContext {
-  Bytes session_id;
-  std::optional<PartyIndex> prover_id;
-  std::optional<PartyIndex> verifier_id;
-};
-
-struct AuxRsaParams {
-  BigInt n_tilde = BigInt(0);
-  BigInt h1 = BigInt(0);
-  BigInt h2 = BigInt(0);
-};
-
-struct SquareFreeProof {
-  Bytes blob;
-};
-
-struct AuxRsaParamProof {
-  Bytes blob;
-};
-
-bool IsZnStarElement(const BigInt& value, const BigInt& modulus);
-bool ValidateAuxRsaParams(const AuxRsaParams& params);
-bool IsLikelySquareFreeModulus(const BigInt& modulus_n);
-
-Bytes EncodeSquareFreeProof(const SquareFreeProof& proof);
-SquareFreeProof DecodeSquareFreeProof(std::span<const uint8_t> encoded,
-                                      size_t max_len = 16384);
-
-Bytes EncodeAuxRsaParamProof(const AuxRsaParamProof& proof);
-AuxRsaParamProof DecodeAuxRsaParamProof(std::span<const uint8_t> encoded,
-                                        size_t max_len = 4096);
-
-AuxRsaParams GenerateAuxRsaParams(uint32_t modulus_bits, PartyIndex party_id);
-
-SquareFreeProof BuildSquareFreeProofGmr98(
-    const BigInt& modulus_n, const BigInt& lambda_n,
-    const StrictProofVerifierContext& context = {});
-bool VerifySquareFreeProofGmr98(const BigInt& modulus_n,
-                                const SquareFreeProof& proof,
-                                const StrictProofVerifierContext& context = {});
-
-AuxRsaParamProof BuildAuxRsaParamProofStrict(
-    const AuxRsaParams& params, const StrictProofVerifierContext& context = {});
-bool VerifyAuxRsaParamProofStrict(
-    const AuxRsaParams& params, const AuxRsaParamProof& proof,
-    const StrictProofVerifierContext& context = {});
+using BigInt = core::paillier::BigInt;
+using StrictProofVerifierContext = core::paillier::StrictProofVerifierContext;
+using AuxRsaParams = core::paillier::AuxRsaParams;
+using SquareFreeProof = core::paillier::SquareFreeProof;
+using AuxRsaParamProof = core::paillier::AuxRsaParamProof;
+using core::paillier::BuildAuxRsaParamProofStrict;
+using core::paillier::BuildSquareFreeProofGmr98;
+using core::paillier::DecodeAuxRsaParamProof;
+using core::paillier::DecodeSquareFreeProof;
+using core::paillier::EncodeAuxRsaParamProof;
+using core::paillier::EncodeSquareFreeProof;
+using core::paillier::GenerateAuxRsaParams;
+using core::paillier::IsLikelySquareFreeModulus;
+using core::paillier::IsZnStarElement;
+using core::paillier::ValidateAuxRsaParams;
+using core::paillier::VerifyAuxRsaParamProofStrict;
+using core::paillier::VerifySquareFreeProofGmr98;
 
 }  // namespace tecdsa

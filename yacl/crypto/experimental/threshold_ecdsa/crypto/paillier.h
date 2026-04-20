@@ -14,73 +14,15 @@
 
 #pragma once
 
-#include <cstddef>
-
-#include "yacl/math/mpint/mp_int.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 
 namespace tecdsa {
 
-using BigInt = yacl::math::MPInt;
-
-struct PaillierCiphertextWithRandom {
-  BigInt ciphertext;
-  BigInt randomness;
-};
-
-using PaillierCiphertextWithRandomBigInt = PaillierCiphertextWithRandom;
-
-struct PaillierPublicKey {
-  BigInt n = BigInt(0);
-};
-
-class PaillierProvider {
- public:
-  explicit PaillierProvider(unsigned long modulus_bits);
-  ~PaillierProvider() = default;
-
-  PaillierProvider(const PaillierProvider&) = delete;
-  PaillierProvider& operator=(const PaillierProvider&) = delete;
-
-  PaillierProvider(PaillierProvider&& other) noexcept = default;
-  PaillierProvider& operator=(PaillierProvider&& other) noexcept = default;
-
-  BigInt EncryptBigInt(const BigInt& plaintext) const;
-  PaillierCiphertextWithRandomBigInt EncryptWithRandomBigInt(
-      const BigInt& plaintext) const;
-  BigInt EncryptWithProvidedRandomBigInt(const BigInt& plaintext,
-                                         const BigInt& randomness) const;
-  BigInt DecryptBigInt(const BigInt& ciphertext) const;
-  BigInt AddCiphertextsBigInt(const BigInt& lhs_cipher,
-                              const BigInt& rhs_cipher) const;
-  BigInt AddPlaintextBigInt(const BigInt& cipher, const BigInt& plain) const;
-  BigInt MulPlaintextBigInt(const BigInt& cipher, const BigInt& plain) const;
-
-  BigInt modulus_n_bigint() const;
-  BigInt modulus_n2_bigint() const;
-  BigInt generator_bigint() const;
-  BigInt private_lambda_bigint() const;
-
-  bool VerifyKeyPair() const;
-
- private:
-  void GenerateKeyPair(unsigned long modulus_bits);
-  static BigInt NormalizeMod(const BigInt& value, const BigInt& modulus);
-  static bool IsProbablePrime(const BigInt& candidate);
-  static BigInt RandomBelow(const BigInt& upper_exclusive);
-  static BigInt RandomOddWithBitSize(size_t bits);
-
-  BigInt SampleZnStar() const;
-  bool IsInZnStar(const BigInt& value) const;
-  BigInt LFunction(const BigInt& value) const;
-
-  BigInt p_;
-  BigInt q_;
-  BigInt n_;
-  BigInt n2_;
-  BigInt g_;
-  BigInt lambda_;
-  BigInt mu_;
-  bool initialized_ = false;
-};
+using BigInt = core::paillier::BigInt;
+using PaillierCiphertextWithRandom = core::paillier::PaillierCiphertextWithRandom;
+using PaillierCiphertextWithRandomBigInt =
+    core::paillier::PaillierCiphertextWithRandomBigInt;
+using PaillierPublicKey = core::paillier::PaillierPublicKey;
+using PaillierProvider = core::paillier::PaillierProvider;
 
 }  // namespace tecdsa
