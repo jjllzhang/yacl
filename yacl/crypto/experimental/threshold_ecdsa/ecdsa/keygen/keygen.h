@@ -18,6 +18,7 @@
 #include <optional>
 #include <vector>
 
+#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
 
 namespace tecdsa::ecdsa::keygen {

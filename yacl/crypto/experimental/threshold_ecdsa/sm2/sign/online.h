@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/keygen/keygen.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/presign/offline.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/verify/verify.h"

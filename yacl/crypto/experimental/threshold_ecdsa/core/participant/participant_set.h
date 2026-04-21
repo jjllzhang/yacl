@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/types.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 
 namespace tecdsa::core::participant {
 

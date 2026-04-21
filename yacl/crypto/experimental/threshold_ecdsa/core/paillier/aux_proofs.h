@@ -19,8 +19,8 @@
 #include <span>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/types.h"
 
 namespace tecdsa::core::paillier {
 

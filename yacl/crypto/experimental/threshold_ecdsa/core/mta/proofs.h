@@ -17,10 +17,10 @@
 #include <cstddef>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/types.h"
 
 namespace tecdsa::core::mta {
 

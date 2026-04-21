@@ -14,18 +14,16 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <vector>
+#include <cstdint>
+#include <string>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+namespace tecdsa {
 
-namespace tecdsa::core::vss {
+using PartyIndex = uint32_t;
 
-std::unordered_map<PartyIndex, Scalar> ComputeLagrangeAtZero(
-    const std::vector<PartyIndex>& participants);
+struct PartyInfo {
+  PartyIndex id;
+  std::string endpoint;
+};
 
-ECPoint SumPointsOrThrow(const std::vector<ECPoint>& points);
-
-}  // namespace tecdsa::core::vss
+}  // namespace tecdsa
