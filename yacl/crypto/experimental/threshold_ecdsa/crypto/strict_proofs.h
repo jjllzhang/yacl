@@ -25,7 +25,6 @@ using StrictProofVerifierContext = core::paillier::StrictProofVerifierContext;
 using AuxRsaParams = core::paillier::AuxRsaParams;
 using SquareFreeProof = core::paillier::SquareFreeProof;
 using AuxRsaParamProof = core::paillier::AuxRsaParamProof;
-using core::paillier::BuildProofContext;
 using core::paillier::BuildAuxRsaParamProofStrict;
 using core::paillier::BuildSquareFreeProofGmr98;
 using core::paillier::DecodeAuxRsaParamProof;
@@ -38,5 +37,13 @@ using core::paillier::IsZnStarElement;
 using core::paillier::ValidateAuxRsaParams;
 using core::paillier::VerifyAuxRsaParamProofStrict;
 using core::paillier::VerifySquareFreeProofGmr98;
+
+inline StrictProofVerifierContext BuildProofContext(
+    const Bytes& session_id, PartyIndex prover_id,
+    std::optional<PartyIndex> verifier_id = std::nullopt) {
+  return core::paillier::BuildProofContext(
+      session_id, prover_id, core::DefaultEcdsaSuite(),
+      core::DefaultGroupContext(), verifier_id);
+}
 
 }  // namespace tecdsa

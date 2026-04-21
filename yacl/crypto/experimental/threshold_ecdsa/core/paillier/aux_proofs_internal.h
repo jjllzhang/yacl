@@ -28,9 +28,9 @@ namespace tecdsa::core::paillier_internal {
 
 using BigInt = paillier::BigInt;
 
-inline constexpr char kSquareFreeProofIdGmr98[] = "GG2019/SquareFreeGMR98/v1";
-inline constexpr char kAuxParamProofIdStrict[] =
-    "GG2019/AuxParamStrictAlgebraic/v1";
+inline constexpr char kSquareFreeProofNameGmr98[] = "SquareFreeGMR98";
+inline constexpr char kAuxParamProofNameStrict[] =
+    "AuxParamStrictAlgebraic";
 
 inline constexpr size_t kStrictNonceLen = 32;
 inline constexpr size_t kMaxStrictNonceLen = 256;

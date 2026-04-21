@@ -54,18 +54,4 @@ bool VerifyCommitment(const ThresholdSuite& suite, const std::string& domain,
                       std::span<const uint8_t> randomness,
                       std::span<const uint8_t> commitment);
 
-// Legacy compatibility overloads that use DefaultEcdsaSuite().commitment_hash.
-CommitmentResult CommitMessage(const std::string& domain,
-                               std::span<const uint8_t> message,
-                               size_t randomness_len = 32);
-
-Bytes ComputeCommitment(const std::string& domain,
-                        std::span<const uint8_t> message,
-                        std::span<const uint8_t> randomness);
-
-bool VerifyCommitment(const std::string& domain,
-                      std::span<const uint8_t> message,
-                      std::span<const uint8_t> randomness,
-                      std::span<const uint8_t> commitment);
-
 }  // namespace tecdsa::core::commitment

@@ -15,10 +15,14 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <optional>
+#include <string>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 #include "yacl/math/mpint/mp_int.h"
 
 namespace tecdsa::core::paillier {
@@ -40,13 +44,21 @@ struct StrictProofVerifierContext {
   Bytes session_id;
   std::optional<PartyIndex> prover_id;
   std::optional<PartyIndex> verifier_id;
+  HashId transcript_hash = HashId::kSha256;
+  std::shared_ptr<const GroupContext> challenge_group;
+  std::string proof_domain_prefix = "GG2019";
 };
 
 StrictProofVerifierContext BuildProofContext(
     const Bytes& session_id, PartyIndex prover_id,
+    const ThresholdSuite& suite,
+    std::shared_ptr<const GroupContext> challenge_group,
     std::optional<PartyIndex> verifier_id = std::nullopt);
-const BigInt& MinPaillierModulusQ8();
-void ValidatePaillierPublicKeyOrThrow(const PaillierPublicKey& pub);
+BigInt MinPaillierModulusQ8(
+    const std::shared_ptr<const GroupContext>& challenge_group);
+void ValidatePaillierPublicKeyOrThrow(
+    const PaillierPublicKey& pub,
+    const std::shared_ptr<const GroupContext>& challenge_group);
 
 class PaillierProvider {
  public:

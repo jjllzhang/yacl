@@ -30,31 +30,37 @@ constexpr size_t kMaxKeygenAttempts = 128;
 
 }  // namespace
 
-const BigInt& MinPaillierModulusQ8() {
-  static const BigInt q_pow_8 = []() {
-    BigInt out(1);
-    const BigInt& q = Scalar::ModulusQMpInt();
-    for (size_t i = 0; i < 8; ++i) {
-      out *= q;
-    }
-    return out;
-  }();
-  return q_pow_8;
+BigInt MinPaillierModulusQ8(
+    const std::shared_ptr<const GroupContext>& challenge_group) {
+  BigInt out(1);
+  for (size_t i = 0; i < 8; ++i) {
+    out *= challenge_group->order();
+  }
+  return out;
 }
 
-void ValidatePaillierPublicKeyOrThrow(const PaillierPublicKey& pub) {
-  if (pub.n <= MinPaillierModulusQ8()) {
+void ValidatePaillierPublicKeyOrThrow(
+    const PaillierPublicKey& pub,
+    const std::shared_ptr<const GroupContext>& challenge_group) {
+  if (pub.n <= MinPaillierModulusQ8(challenge_group)) {
     TECDSA_THROW_ARGUMENT("Paillier modulus must satisfy N > q^8");
   }
 }
 
 StrictProofVerifierContext BuildProofContext(
-    const Bytes& session_id, PartyIndex prover_id,
+    const Bytes& session_id, PartyIndex prover_id, const ThresholdSuite& suite,
+    std::shared_ptr<const GroupContext> challenge_group,
     std::optional<PartyIndex> verifier_id) {
+  if (challenge_group == nullptr) {
+    challenge_group = GroupContext::Create(suite.curve);
+  }
   StrictProofVerifierContext context;
   context.session_id = session_id;
   context.prover_id = prover_id;
   context.verifier_id = verifier_id;
+  context.transcript_hash = suite.transcript_hash;
+  context.challenge_group = std::move(challenge_group);
+  context.proof_domain_prefix = suite.proof_domain_prefix;
   return context;
 }
 

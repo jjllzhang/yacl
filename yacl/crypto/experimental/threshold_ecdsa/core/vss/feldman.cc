@@ -24,9 +24,9 @@ namespace tecdsa::core::vss {
 
 using BigInt = Scalar::BigInt;
 
-Scalar RandomNonZeroScalar() {
+Scalar RandomNonZeroScalar(const std::shared_ptr<const GroupContext>& group) {
   while (true) {
-    const Scalar candidate = Csprng::RandomScalar();
+    const Scalar candidate = Scalar::FromBigEndianModQ(Csprng::RandomBytes(32), group);
     if (candidate.value() != 0) {
       return candidate;
     }
@@ -39,7 +39,8 @@ Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
     TECDSA_THROW_ARGUMENT("polynomial coefficients must not be empty");
   }
 
-  const BigInt& q = Scalar::ModulusQMpInt();
+  const auto& group = coefficients.front().group();
+  const BigInt& q = group->order();
   const BigInt x = BigInt(party_id).Mod(q);
 
   BigInt acc(0);
@@ -48,7 +49,7 @@ Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
     acc = bigint::NormalizeMod(acc + coefficient.mp_value() * power, q);
     power = bigint::NormalizeMod(power * x, q);
   }
-  return Scalar(acc);
+  return Scalar(acc, group);
 }
 
 std::vector<ECPoint> BuildCommitments(
@@ -77,11 +78,12 @@ bool VerifyShareForReceiver(PartyIndex receiver_id, size_t threshold,
 
   try {
     ECPoint rhs = commitments.front();
-    const BigInt& q = Scalar::ModulusQMpInt();
+    const auto& group = share.group();
+    const BigInt& q = group->order();
     const BigInt receiver = BigInt(receiver_id);
     BigInt power = receiver.Mod(q);
     for (size_t k = 1; k < commitments.size(); ++k) {
-      rhs = rhs.Add(commitments[k].Mul(Scalar(power)));
+      rhs = rhs.Add(commitments[k].Mul(Scalar(power, group)));
       power = bigint::NormalizeMod(power * receiver, q);
     }
     const ECPoint lhs = ECPoint::GeneratorMultiply(share);

@@ -156,7 +156,8 @@ void KeygenParty::EnsureLocalPolynomialPrepared() {
   local_Z_i_ = local_vss_commitments_.front();
 
   const auto commit = core::commitment::CommitMessage(
-      kKeygenPhase1CommitDomain, local_Z_i_.ToCompressedBytes());
+      core::DefaultSm2Suite(), kKeygenPhase1CommitDomain,
+      local_Z_i_.ToCompressedBytes());
   local_commitment_ = commit.commitment;
   local_open_randomness_ = commit.randomness;
 }
@@ -169,7 +170,8 @@ void KeygenParty::EnsureLocalPaillierPrepared() {
   for (size_t attempt = 0; attempt < kMaxPaillierKeygenAttempts; ++attempt) {
     auto candidate =
         std::make_shared<PaillierProvider>(cfg_.paillier_modulus_bits);
-    if (candidate->modulus_n_bigint() > paillier::MinPaillierModulusQ8()) {
+    if (candidate->modulus_n_bigint() >
+        paillier::MinPaillierModulusQ8(internal::Sm2Group())) {
       local_paillier_ = std::move(candidate);
       local_paillier_public_ = PaillierPublicKey{
           .n = local_paillier_->modulus_n_bigint(),
@@ -187,7 +189,9 @@ void KeygenParty::EnsureLocalProofsPrepared() {
   }
 
   EnsureLocalPaillierPrepared();
-  const auto context = paillier::BuildProofContext(cfg_.session_id, cfg_.self_id);
+  const auto context =
+      paillier::BuildProofContext(cfg_.session_id, cfg_.self_id,
+                                  core::DefaultSm2Suite(), internal::Sm2Group());
   local_aux_rsa_params_ =
       GenerateAuxRsaParams(cfg_.aux_rsa_modulus_bits, cfg_.self_id);
   local_square_free_proof_ = BuildSquareFreeProofGmr98(
@@ -232,11 +236,15 @@ KeygenRound2Out KeygenParty::MakeRound2(
 
   for (PartyIndex peer : peers_) {
     const auto& msg = peer_round1.at(peer);
-    paillier::ValidatePaillierPublicKeyOrThrow(msg.paillier_public);
+    paillier::ValidatePaillierPublicKeyOrThrow(msg.paillier_public,
+                                               internal::Sm2Group());
     if (!ValidateAuxRsaParams(msg.aux_rsa_params)) {
       TECDSA_THROW_ARGUMENT("peer aux RSA parameters are invalid");
     }
-    const auto context = paillier::BuildProofContext(cfg_.session_id, peer);
+    const auto context =
+        paillier::BuildProofContext(cfg_.session_id, peer,
+                                    core::DefaultSm2Suite(),
+                                    internal::Sm2Group());
     if (!VerifyAuxRsaParamProofStrict(msg.aux_rsa_params, msg.aux_param_proof,
                                       context)) {
       TECDSA_THROW_ARGUMENT("peer aux parameter proof verification failed");
@@ -297,10 +305,10 @@ std::vector<KeygenRound3Request> KeygenParty::MakeRound3Requests(
     if (msg.commitments.front() != msg.Z_i) {
       TECDSA_THROW_ARGUMENT("peer Feldman commitments do not open to Z_i");
     }
-    if (!core::commitment::VerifyCommitment(kKeygenPhase1CommitDomain,
-                                            msg.Z_i.ToCompressedBytes(),
-                                            msg.randomness,
-                                            commitment_it->second)) {
+    if (!core::commitment::VerifyCommitment(
+            core::DefaultSm2Suite(), kKeygenPhase1CommitDomain,
+            msg.Z_i.ToCompressedBytes(), msg.randomness,
+            commitment_it->second)) {
       TECDSA_THROW_ARGUMENT("peer phase1 commitment verification failed");
     }
     const Scalar share = shares_for_self.at(peer);
@@ -421,7 +429,10 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound4Msg>& peer_round4) 
                                       msg.gamma_proof)) {
       TECDSA_THROW_ARGUMENT("peer gamma Schnorr proof verification failed");
     }
-    const auto context = paillier::BuildProofContext(cfg_.session_id, peer);
+    const auto context =
+        paillier::BuildProofContext(cfg_.session_id, peer,
+                                    core::DefaultSm2Suite(),
+                                    internal::Sm2Group());
     if (!VerifySquareFreeProofGmr98(all_paillier_public_.at(peer).n,
                                     msg.square_free_proof, context)) {
       TECDSA_THROW_ARGUMENT("peer square-free proof verification failed");

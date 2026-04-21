@@ -23,4 +23,26 @@ using core::commitment::CommitMessage;
 using core::commitment::ComputeCommitment;
 using core::commitment::VerifyCommitment;
 
+inline CommitmentResult CommitMessage(const std::string& domain,
+                                      std::span<const uint8_t> message,
+                                      size_t randomness_len = 32) {
+  return core::commitment::CommitMessage(core::DefaultEcdsaSuite(), domain,
+                                         message, randomness_len);
+}
+
+inline Bytes ComputeCommitment(const std::string& domain,
+                               std::span<const uint8_t> message,
+                               std::span<const uint8_t> randomness) {
+  return core::commitment::ComputeCommitment(core::DefaultEcdsaSuite(), domain,
+                                             message, randomness);
+}
+
+inline bool VerifyCommitment(const std::string& domain,
+                             std::span<const uint8_t> message,
+                             std::span<const uint8_t> randomness,
+                             std::span<const uint8_t> commitment) {
+  return core::commitment::VerifyCommitment(core::DefaultEcdsaSuite(), domain,
+                                            message, randomness, commitment);
+}
+
 }  // namespace tecdsa

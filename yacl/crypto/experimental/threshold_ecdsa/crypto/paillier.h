@@ -24,7 +24,16 @@ using PaillierCiphertextWithRandomBigInt =
     core::paillier::PaillierCiphertextWithRandomBigInt;
 using PaillierPublicKey = core::paillier::PaillierPublicKey;
 using PaillierProvider = core::paillier::PaillierProvider;
-using core::paillier::MinPaillierModulusQ8;
-using core::paillier::ValidatePaillierPublicKeyOrThrow;
+
+inline const BigInt& MinPaillierModulusQ8() {
+  static const BigInt kMin =
+      core::paillier::MinPaillierModulusQ8(core::DefaultGroupContext());
+  return kMin;
+}
+
+inline void ValidatePaillierPublicKeyOrThrow(const PaillierPublicKey& pub) {
+  core::paillier::ValidatePaillierPublicKeyOrThrow(pub,
+                                                   core::DefaultGroupContext());
+}
 
 }  // namespace tecdsa

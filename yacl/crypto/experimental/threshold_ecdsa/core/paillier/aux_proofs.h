@@ -51,15 +51,15 @@ AuxRsaParams GenerateAuxRsaParams(uint32_t modulus_bits, PartyIndex party_id);
 
 SquareFreeProof BuildSquareFreeProofGmr98(
     const BigInt& modulus_n, const BigInt& lambda_n,
-    const StrictProofVerifierContext& context = {});
+    const StrictProofVerifierContext& context);
 bool VerifySquareFreeProofGmr98(const BigInt& modulus_n,
                                 const SquareFreeProof& proof,
-                                const StrictProofVerifierContext& context = {});
+                                const StrictProofVerifierContext& context);
 
 AuxRsaParamProof BuildAuxRsaParamProofStrict(
-    const AuxRsaParams& params, const StrictProofVerifierContext& context = {});
+    const AuxRsaParams& params, const StrictProofVerifierContext& context);
 bool VerifyAuxRsaParamProofStrict(
     const AuxRsaParams& params, const AuxRsaParamProof& proof,
-    const StrictProofVerifierContext& context = {});
+    const StrictProofVerifierContext& context);
 
 }  // namespace tecdsa::core::paillier

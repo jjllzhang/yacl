@@ -174,13 +174,16 @@ SignParty::SignParty(SignConfig cfg)
     const auto& aux_param_proof =
         cfg_.public_keygen_data.all_aux_param_proofs.at(party);
 
-    paillier::ValidatePaillierPublicKeyOrThrow(paillier_public);
+    paillier::ValidatePaillierPublicKeyOrThrow(
+        paillier_public, cfg_.local_key_share.x_i.group());
     if (!paillier::ValidateAuxRsaParams(aux_params)) {
       TECDSA_THROW_ARGUMENT("public aux RSA parameters are invalid");
     }
 
     const paillier::StrictProofVerifierContext proof_context =
-        paillier::BuildProofContext(cfg_.keygen_session_id, party);
+        paillier::BuildProofContext(cfg_.keygen_session_id, party,
+                                    core::DefaultEcdsaSuite(),
+                                    cfg_.local_key_share.x_i.group());
     if (!paillier::VerifySquareFreeProofGmr98(paillier_public.n,
                                               square_free_proof,
                                               proof_context)) {
@@ -216,7 +219,8 @@ SignParty::SignParty(SignConfig cfg)
 const SignConfig& SignParty::config() const { return cfg_; }
 
 void SignParty::PrepareResharedSigningShares() {
-  lagrange_coefficients_ = core::vss::ComputeLagrangeAtZero(cfg_.participants);
+  lagrange_coefficients_ = core::vss::ComputeLagrangeAtZero(
+      cfg_.participants, cfg_.local_key_share.x_i.group());
 
   const auto lambda_self_it = lagrange_coefficients_.find(cfg_.self_id);
   if (lambda_self_it == lagrange_coefficients_.end()) {
@@ -260,12 +264,14 @@ void SignParty::EnsurePhase1Prepared() {
     return;
   }
 
-  local_k_i_ = core::vss::RandomNonZeroScalar();
-  local_gamma_i_ = core::vss::RandomNonZeroScalar();
+  const auto& group = cfg_.local_key_share.x_i.group();
+  local_k_i_ = core::vss::RandomNonZeroScalar(group);
+  local_gamma_i_ = core::vss::RandomNonZeroScalar(group);
   local_Gamma_i_ = ECPoint::GeneratorMultiply(local_gamma_i_);
 
   const core::commitment::CommitmentResult commit =
-      core::commitment::CommitMessage(kPhase1CommitDomain,
+      core::commitment::CommitMessage(core::DefaultEcdsaSuite(),
+                                      kPhase1CommitDomain,
                                       local_Gamma_i_.ToCompressedBytes());
   local_round1_randomness_ = commit.randomness;
   round1_ = SignRound1Msg{.commitment = commit.commitment};
@@ -278,8 +284,9 @@ void SignParty::EnsureRound5ASharePrepared() {
   }
 
   local_s_i_ = (message_scalar_ * local_k_i_) + (r_ * local_sigma_i_);
-  local_l_i_ = core::vss::RandomNonZeroScalar();
-  local_rho_i_ = core::vss::RandomNonZeroScalar();
+  const auto& group = cfg_.local_key_share.x_i.group();
+  local_l_i_ = core::vss::RandomNonZeroScalar(group);
+  local_rho_i_ = core::vss::RandomNonZeroScalar(group);
 
   local_V_i_ = ECPoint::GeneratorMultiply(local_l_i_);
   if (local_s_i_.value() != 0) {
@@ -289,6 +296,7 @@ void SignParty::EnsureRound5ASharePrepared() {
 
   const core::commitment::CommitmentResult commit =
       core::commitment::CommitMessage(
+          core::DefaultEcdsaSuite(),
           kPhase5ACommitDomain,
           relation::SerializePointPair(local_V_i_, local_A_i_));
   local_round5a_randomness_ = commit.randomness;
@@ -530,7 +538,8 @@ SignRound4Msg SignParty::MakeRound4(const PeerMap<SignRound3Msg>& peer_round3) {
       .gamma_i = local_Gamma_i_,
       .randomness = local_round1_randomness_,
       .gamma_proof = core::proof::BuildSchnorrProof(
-          cfg_.session_id, cfg_.self_id, local_Gamma_i_, local_gamma_i_),
+          core::DefaultEcdsaSuite(), cfg_.session_id, cfg_.self_id,
+          local_Gamma_i_, local_gamma_i_),
   };
   return *round4_;
 }
@@ -557,13 +566,14 @@ SignRound5AMsg SignParty::MakeRound5A(
       TECDSA_THROW_LOGIC("missing stored round1 commitment for peer");
     }
     if (!core::commitment::VerifyCommitment(
-            kPhase1CommitDomain,
+            core::DefaultEcdsaSuite(), kPhase1CommitDomain,
             msg.gamma_i.ToCompressedBytes(), msg.randomness,
             commitment_it->second)) {
       TECDSA_THROW_ARGUMENT(
           "round4 gamma opening does not match round1 commitment");
     }
-    if (!core::proof::VerifySchnorrProof(cfg_.session_id, peer, msg.gamma_i,
+    if (!core::proof::VerifySchnorrProof(core::DefaultEcdsaSuite(),
+                                         cfg_.session_id, peer, msg.gamma_i,
                                          msg.gamma_proof)) {
       TECDSA_THROW_ARGUMENT("round4 gamma Schnorr proof verification failed");
     }
@@ -608,7 +618,8 @@ SignRound5BMsg SignParty::MakeRound5B(
       .A_i = local_A_i_,
       .randomness = local_round5a_randomness_,
       .a_schnorr_proof = core::proof::BuildSchnorrProof(
-          cfg_.session_id, cfg_.self_id, local_A_i_, local_rho_i_),
+          core::DefaultEcdsaSuite(), cfg_.session_id, cfg_.self_id, local_A_i_,
+          local_rho_i_),
       .v_relation_proof =
           relation::BuildVRelationProof(cfg_.session_id, cfg_.self_id, R_,
                                         local_V_i_, local_s_i_, local_l_i_),
@@ -643,13 +654,14 @@ SignRound5CMsg SignParty::MakeRound5C(
     }
 
     if (!core::commitment::VerifyCommitment(
-            kPhase5ACommitDomain,
+            core::DefaultEcdsaSuite(), kPhase5ACommitDomain,
             relation::SerializePointPair(msg.V_i, msg.A_i),
             msg.randomness, commitment_it->second)) {
       TECDSA_THROW_ARGUMENT(
           "round5B opening does not match round5A commitment");
     }
-    if (!core::proof::VerifySchnorrProof(cfg_.session_id, peer, msg.A_i,
+    if (!core::proof::VerifySchnorrProof(core::DefaultEcdsaSuite(),
+                                         cfg_.session_id, peer, msg.A_i,
                                          msg.a_schnorr_proof)) {
       TECDSA_THROW_ARGUMENT("round5B A_i Schnorr proof verification failed");
     }
@@ -678,6 +690,7 @@ SignRound5CMsg SignParty::MakeRound5C(
 
   const core::commitment::CommitmentResult commit =
       core::commitment::CommitMessage(
+          core::DefaultEcdsaSuite(),
           kPhase5CCommitDomain,
           relation::SerializePointPair(local_U_i_, local_T_i_));
   local_round5c_randomness_ = commit.randomness;
@@ -735,7 +748,7 @@ Scalar SignParty::RevealRound5E(const PeerMap<SignRound5DMsg>& peer_round5d) {
       TECDSA_THROW_LOGIC("missing stored round5C commitment for peer");
     }
     if (!core::commitment::VerifyCommitment(
-            kPhase5CCommitDomain,
+            core::DefaultEcdsaSuite(), kPhase5CCommitDomain,
             relation::SerializePointPair(msg.U_i, msg.T_i),
             msg.randomness, commitment_it->second)) {
       TECDSA_THROW_ARGUMENT(

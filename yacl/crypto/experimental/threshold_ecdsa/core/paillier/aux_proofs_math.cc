@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
@@ -63,7 +64,7 @@ Bytes ExpandHashStream(std::span<const uint8_t> seed, size_t out_len) {
   while (out.size() < out_len) {
     Bytes block_input(seed.begin(), seed.end());
     AppendU32Be(block, &block_input);
-    const Bytes digest = Sha256(block_input);
+    const Bytes digest = Hash(HashId::kSha256, block_input);
     const size_t remaining = out_len - out.size();
     const size_t take = std::min(remaining, digest.size());
     out.insert(out.end(), digest.begin(),
@@ -71,6 +72,11 @@ Bytes ExpandHashStream(std::span<const uint8_t> seed, size_t out_len) {
     ++block;
   }
   return out;
+}
+
+std::string BuildProofId(const paillier::StrictProofVerifierContext& context,
+                         const char* proof_name) {
+  return context.proof_domain_prefix + "/" + proof_name + "/v1";
 }
 
 }  // namespace
@@ -154,8 +160,9 @@ Scalar BuildAuxParamStrictChallenge(const AuxRsaParamsBigInt& params,
                                     std::span<const uint8_t> nonce,
                                     const BigInt& c1, const BigInt& c2,
                                     const BigInt& t1, const BigInt& t2) {
-  transcript::Transcript transcript;
-  transcript.append_proof_id(kAuxParamProofIdStrict);
+  transcript::Transcript transcript(context.transcript_hash);
+  const std::string proof_id = BuildProofId(context, kAuxParamProofNameStrict);
+  transcript.append_proof_id(proof_id);
   AppendVerifierContext(&transcript, context);
   const Bytes n_tilde_bytes = encoding::EncodeMpInt(params.n_tilde);
   const Bytes h1_bytes = encoding::EncodeMpInt(params.h1);
@@ -174,7 +181,7 @@ Scalar BuildAuxParamStrictChallenge(const AuxRsaParamsBigInt& params,
       transcript::TranscriptFieldRef{.label = "t1", .data = t1_bytes},
       transcript::TranscriptFieldRef{.label = "t2", .data = t2_bytes},
   });
-  return transcript.challenge_scalar_mod_q();
+  return transcript.challenge_scalar(context.challenge_group);
 }
 
 BigInt DeriveSquareFreeGmr98Challenge(
@@ -189,8 +196,10 @@ BigInt DeriveSquareFreeGmr98Challenge(
 
   for (uint32_t attempt = 0; attempt < kMaxSquareFreeGmr98ChallengeAttempts;
        ++attempt) {
-    transcript::Transcript transcript;
-    transcript.append_proof_id(kSquareFreeProofIdGmr98);
+    transcript::Transcript transcript(context.transcript_hash);
+    const std::string proof_id =
+        BuildProofId(context, kSquareFreeProofNameGmr98);
+    transcript.append_proof_id(proof_id);
     AppendVerifierContext(&transcript, context);
     transcript.append_fields({
         transcript::TranscriptFieldRef{.label = "N", .data = n_bytes},
@@ -199,7 +208,7 @@ BigInt DeriveSquareFreeGmr98Challenge(
     transcript.append_u32_be("round", round_idx);
     transcript.append_u32_be("attempt", attempt);
 
-    const Bytes seed = Sha256(transcript.bytes());
+    const Bytes seed = Hash(context.transcript_hash, transcript.bytes());
     const Bytes expanded = ExpandHashStream(seed, byte_len);
     BigInt candidate = bigint::FromBigEndian(expanded);
     candidate = NormalizeMod(candidate, modulus_n);

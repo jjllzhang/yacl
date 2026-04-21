@@ -28,7 +28,9 @@ std::vector<PartyIndex> BuildPeers(const std::vector<PartyIndex>& participants,
   return core::participant::BuildPeers(participants, self_id);
 }
 
-Scalar RandomNonZeroScalar() { return core::vss::RandomNonZeroScalar(); }
+Scalar RandomNonZeroScalar() {
+  return core::vss::RandomNonZeroScalar(core::DefaultGroupContext());
+}
 
 Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
                             PartyIndex party_id) {
@@ -36,34 +38,43 @@ Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
 }
 
 tecdsa::StrictProofVerifierContext BuildProofContext(const Bytes& session_id,
-                                                     PartyIndex prover_id) {
-  return core::paillier::BuildProofContext(session_id, prover_id);
+                                                     PartyIndex prover_id,
+                                                     std::optional<PartyIndex>
+                                                         verifier_id) {
+  return core::paillier::BuildProofContext(session_id, prover_id,
+                                           core::DefaultEcdsaSuite(),
+                                           core::DefaultGroupContext(),
+                                           verifier_id);
 }
 
 SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,
                                const Scalar& witness) {
-  return core::proof::BuildSchnorrProof(session_id, prover_id, statement,
-                                        witness);
+  return core::proof::BuildSchnorrProof(core::DefaultEcdsaSuite(), session_id,
+                                        prover_id, statement, witness);
 }
 
 bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                         const ECPoint& statement, const SchnorrProof& proof) {
-  return core::proof::VerifySchnorrProof(session_id, prover_id, statement,
-                                         proof);
+  return core::proof::VerifySchnorrProof(core::DefaultEcdsaSuite(), session_id,
+                                         prover_id, statement, proof);
 }
 
 const tecdsa::BigInt& MinPaillierModulusQ8() {
-  return core::paillier::MinPaillierModulusQ8();
+  static const tecdsa::BigInt kMin =
+      core::paillier::MinPaillierModulusQ8(core::DefaultGroupContext());
+  return kMin;
 }
 
 void ValidatePaillierPublicKeyOrThrow(const tecdsa::PaillierPublicKey& pub) {
-  core::paillier::ValidatePaillierPublicKeyOrThrow(pub);
+  core::paillier::ValidatePaillierPublicKeyOrThrow(pub,
+                                                   core::DefaultGroupContext());
 }
 
 std::unordered_map<PartyIndex, Scalar> ComputeLagrangeAtZero(
     const std::vector<PartyIndex>& participants) {
-  return core::vss::ComputeLagrangeAtZero(participants);
+  return core::vss::ComputeLagrangeAtZero(participants,
+                                          core::DefaultGroupContext());
 }
 
 ECPoint SumPointsOrThrow(const std::vector<ECPoint>& points) {

@@ -63,12 +63,13 @@ void KeygenParty::EnsureLocalPolynomialPrepared() {
     return;
   }
 
+  const auto ecdsa_group = core::DefaultGroupContext();
   while (true) {
     std::vector<Scalar> candidate_coefficients;
     candidate_coefficients.reserve(cfg_.threshold + 1);
-    candidate_coefficients.push_back(core::vss::RandomNonZeroScalar());
+    candidate_coefficients.push_back(core::vss::RandomNonZeroScalar(ecdsa_group));
     for (uint32_t i = 0; i < cfg_.threshold; ++i) {
-      candidate_coefficients.push_back(core::vss::RandomNonZeroScalar());
+      candidate_coefficients.push_back(core::vss::RandomNonZeroScalar(ecdsa_group));
     }
 
     PeerMap<Scalar> candidate_shares;
@@ -97,7 +98,8 @@ void KeygenParty::EnsureLocalPolynomialPrepared() {
 
   const Bytes y_i_bytes = core::encoding::EncodePoint(local_y_i_);
   const core::commitment::CommitmentResult commit =
-      core::commitment::CommitMessage(kKeygenPhase1CommitDomain, y_i_bytes);
+      core::commitment::CommitMessage(core::DefaultEcdsaSuite(),
+                                      kKeygenPhase1CommitDomain, y_i_bytes);
   local_commitment_ = commit.commitment;
   local_open_randomness_ = commit.randomness;
 }
@@ -111,7 +113,7 @@ void KeygenParty::EnsureLocalPaillierPrepared() {
     auto candidate =
         std::make_shared<PaillierProvider>(cfg_.paillier_modulus_bits);
     const BigInt candidate_n = candidate->modulus_n_bigint();
-    if (candidate_n > paillier::MinPaillierModulusQ8()) {
+    if (candidate_n > paillier::MinPaillierModulusQ8(local_y_i_.group())) {
       local_paillier_ = std::move(candidate);
       local_paillier_public_ = PaillierPublicKey{.n = candidate_n};
       return;
@@ -127,7 +129,8 @@ void KeygenParty::EnsureLocalProofsPrepared() {
   }
 
   EnsureLocalPaillierPrepared();
-  const auto context = paillier::BuildProofContext(cfg_.session_id, cfg_.self_id);
+  const auto context = paillier::BuildProofContext(
+      cfg_.session_id, cfg_.self_id, core::DefaultEcdsaSuite(), local_y_i_.group());
   local_aux_rsa_params_ =
       GenerateAuxRsaParams(cfg_.aux_rsa_modulus_bits, cfg_.self_id);
   local_square_free_proof_ = BuildSquareFreeProofGmr98(
@@ -182,11 +185,13 @@ KeygenRound2Out KeygenParty::MakeRound2(
   for (PartyIndex peer : peers_) {
     const auto it = peer_round1.find(peer);
     const KeygenRound1Msg& msg = it->second;
-    paillier::ValidatePaillierPublicKeyOrThrow(msg.paillier_public);
+    paillier::ValidatePaillierPublicKeyOrThrow(msg.paillier_public,
+                                               local_y_i_.group());
     if (!ValidateAuxRsaParams(msg.aux_rsa_params)) {
       TECDSA_THROW_ARGUMENT("peer aux RSA parameters are invalid");
     }
-    const auto context = paillier::BuildProofContext(cfg_.session_id, peer);
+    const auto context = paillier::BuildProofContext(
+        cfg_.session_id, peer, core::DefaultEcdsaSuite(), local_y_i_.group());
     if (!VerifyAuxRsaParamProofStrict(msg.aux_rsa_params, msg.aux_param_proof,
                                       context)) {
       TECDSA_THROW_ARGUMENT("peer aux parameter proof verification failed");
@@ -254,9 +259,9 @@ KeygenRound3Msg KeygenParty::MakeRound3(
     }
 
     const Bytes y_i_bytes = core::encoding::EncodePoint(msg.y_i);
-    if (!core::commitment::VerifyCommitment(kKeygenPhase1CommitDomain,
-                                            y_i_bytes, msg.randomness,
-                                            commitment_it->second)) {
+    if (!core::commitment::VerifyCommitment(
+            core::DefaultEcdsaSuite(), kKeygenPhase1CommitDomain, y_i_bytes,
+            msg.randomness, commitment_it->second)) {
       TECDSA_THROW_ARGUMENT("peer phase1 commitment verification failed");
     }
 
@@ -284,7 +289,8 @@ KeygenRound3Msg KeygenParty::MakeRound3(
   const ECPoint X_i = ECPoint::GeneratorMultiply(local_x_i_);
   round3_ = KeygenRound3Msg{
       .X_i = X_i,
-      .proof = core::proof::BuildSchnorrProof(cfg_.session_id, cfg_.self_id,
+      .proof = core::proof::BuildSchnorrProof(core::DefaultEcdsaSuite(),
+                                              cfg_.session_id, cfg_.self_id,
                                               X_i, local_x_i_),
       .square_free_proof = local_square_free_proof_,
   };
@@ -312,7 +318,8 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound3Msg>& peer_round3) 
 
   for (PartyIndex peer : peers_) {
     const KeygenRound3Msg& msg = peer_round3.at(peer);
-    if (!core::proof::VerifySchnorrProof(cfg_.session_id, peer, msg.X_i,
+    if (!core::proof::VerifySchnorrProof(core::DefaultEcdsaSuite(),
+                                         cfg_.session_id, peer, msg.X_i,
                                          msg.proof)) {
       TECDSA_THROW_ARGUMENT("peer Schnorr proof verification failed");
     }
@@ -320,7 +327,8 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound3Msg>& peer_round3) 
     if (pk_it == all_paillier_public_.end()) {
       TECDSA_THROW_LOGIC("missing stored Paillier public key for peer");
     }
-    const auto context = paillier::BuildProofContext(cfg_.session_id, peer);
+    const auto context = paillier::BuildProofContext(
+        cfg_.session_id, peer, core::DefaultEcdsaSuite(), local_y_i_.group());
     if (!VerifySquareFreeProofGmr98(pk_it->second.n, msg.square_free_proof,
                                     context)) {
       TECDSA_THROW_ARGUMENT("peer square-free proof verification failed");

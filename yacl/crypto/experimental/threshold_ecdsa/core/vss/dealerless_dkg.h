@@ -18,13 +18,15 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::core::vss {
 
 std::unordered_map<PartyIndex, Scalar> ComputeLagrangeAtZero(
-    const std::vector<PartyIndex>& participants);
+    const std::vector<PartyIndex>& participants,
+    const std::shared_ptr<const GroupContext>& group);
 
 ECPoint SumPointsOrThrow(const std::vector<ECPoint>& points);
 

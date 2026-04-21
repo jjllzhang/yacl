@@ -15,15 +15,17 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::core::vss {
 
-Scalar RandomNonZeroScalar();
+Scalar RandomNonZeroScalar(const std::shared_ptr<const GroupContext>& group);
 
 Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
                             PartyIndex party_id);

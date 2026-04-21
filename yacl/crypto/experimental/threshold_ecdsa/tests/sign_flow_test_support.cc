@@ -170,10 +170,7 @@ SignFixture BuildSignFixture(const std::vector<PartyIndex>& signers) {
 
 tecdsa::StrictProofVerifierContext BuildKeygenProofContext(
     const Bytes& keygen_session_id, PartyIndex prover_id) {
-  tecdsa::StrictProofVerifierContext context;
-  context.session_id = keygen_session_id;
-  context.prover_id = prover_id;
-  return context;
+  return tecdsa::BuildProofContext(keygen_session_id, prover_id);
 }
 
 std::vector<SignConfig> BuildSignConfigs(const SignFixture& fixture,

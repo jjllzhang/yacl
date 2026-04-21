@@ -22,14 +22,16 @@ namespace {
 
 using BigInt = Scalar::BigInt;
 
-BigInt NormalizeModQ(const BigInt& value) {
-  return bigint::NormalizeMod(value, Scalar::ModulusQMpInt());
+BigInt NormalizeModQ(const BigInt& value,
+                     const std::shared_ptr<const GroupContext>& group) {
+  return bigint::NormalizeMod(value, group->order());
 }
 
 }  // namespace
 
 std::unordered_map<PartyIndex, Scalar> ComputeLagrangeAtZero(
-    const std::vector<PartyIndex>& participants) {
+    const std::vector<PartyIndex>& participants,
+    const std::shared_ptr<const GroupContext>& group) {
   std::unordered_map<PartyIndex, Scalar> out;
   out.reserve(participants.size());
 
@@ -42,17 +44,18 @@ std::unordered_map<PartyIndex, Scalar> ComputeLagrangeAtZero(
         continue;
       }
 
-      const BigInt neg_j = NormalizeModQ(BigInt(0) - BigInt(j));
-      numerator = NormalizeModQ(numerator * neg_j);
+      const BigInt neg_j = NormalizeModQ(BigInt(0) - BigInt(j), group);
+      numerator = NormalizeModQ(numerator * neg_j, group);
 
-      const BigInt diff = NormalizeModQ(BigInt(i) - BigInt(j));
+      const BigInt diff = NormalizeModQ(BigInt(i) - BigInt(j), group);
       if (diff == 0) {
         TECDSA_THROW_ARGUMENT("duplicate participant id in lagrange set");
       }
-      denominator = NormalizeModQ(denominator * diff);
+      denominator = NormalizeModQ(denominator * diff, group);
     }
 
-    Scalar lambda = Scalar(numerator) * Scalar(denominator).InverseModQ();
+    Scalar lambda =
+        Scalar(numerator, group) * Scalar(denominator, group).InverseModQ();
     out.emplace(i, lambda);
   }
 

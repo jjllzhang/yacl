@@ -55,6 +55,7 @@ using tecdsa::ComputeCommitment;
 using tecdsa::core::CurveId;
 using tecdsa::core::DefaultEcdsaSuite;
 using tecdsa::core::DefaultGroupContext;
+using tecdsa::core::DefaultSm2Suite;
 using tecdsa::DecodeMpInt;
 using tecdsa::ECPoint;
 using tecdsa::EncodeMpInt;
@@ -164,7 +165,8 @@ void TestStage2ParticipantAndVssHelpers() {
          "VerifyShareForReceiver must reject a tampered share");
 
   const auto lagrange =
-      tecdsa::core::vss::ComputeLagrangeAtZero(participants);
+      tecdsa::core::vss::ComputeLagrangeAtZero(participants,
+                                               DefaultGroupContext());
   Expect(lagrange.size() == participants.size(),
          "ComputeLagrangeAtZero must return all coefficients");
   Expect(lagrange.at(1) + lagrange.at(2) + lagrange.at(3) ==
@@ -184,16 +186,19 @@ void TestStage2SchnorrHelpers() {
   const ECPoint statement = ECPoint::GeneratorMultiply(witness);
 
   const auto proof =
-      tecdsa::core::proof::BuildSchnorrProof(session_id, /*prover_id=*/7,
-                                             statement, witness);
-  Expect(tecdsa::core::proof::VerifySchnorrProof(session_id, /*prover_id=*/7,
-                                                 statement, proof),
+      tecdsa::core::proof::BuildSchnorrProof(DefaultEcdsaSuite(), session_id,
+                                             /*prover_id=*/7, statement,
+                                             witness);
+  Expect(tecdsa::core::proof::VerifySchnorrProof(
+             DefaultEcdsaSuite(), session_id, /*prover_id=*/7, statement,
+             proof),
          "BuildSchnorrProof output must verify");
 
   auto tampered = proof;
   tampered.z = tampered.z + Scalar::FromUint64(1);
   Expect(!tecdsa::core::proof::VerifySchnorrProof(
-             session_id, /*prover_id=*/7, statement, tampered),
+             DefaultEcdsaSuite(), session_id, /*prover_id=*/7, statement,
+             tampered),
          "VerifySchnorrProof must reject a tampered response");
 }
 
@@ -225,7 +230,8 @@ void TestStage3CoreCryptoCompatibility() {
 
   const Bytes message = {'s', '3'};
   const auto core_commit =
-      tecdsa::core::commitment::CommitMessage("stage3", message);
+      tecdsa::core::commitment::CommitMessage(DefaultEcdsaSuite(), "stage3",
+                                              message);
   Expect(VerifyCommitment("stage3", message, core_commit.randomness,
                           core_commit.commitment),
          "legacy commitment verification must accept core commitment output");
@@ -234,9 +240,9 @@ void TestStage3CoreCryptoCompatibility() {
   Expect(core_paillier.VerifyKeyPair(),
          "core Paillier provider must generate a valid key pair");
 
-  tecdsa::core::paillier::StrictProofVerifierContext proof_ctx;
-  proof_ctx.session_id = Bytes{0x13, 0x37};
-  proof_ctx.prover_id = 1;
+  const auto proof_ctx = tecdsa::core::paillier::BuildProofContext(
+      Bytes{0x13, 0x37}, /*prover_id=*/1, DefaultEcdsaSuite(),
+      DefaultGroupContext());
   const auto aux_params =
       tecdsa::core::paillier::GenerateAuxRsaParams(/*modulus_bits=*/64,
                                                    /*party_id=*/1);
@@ -431,7 +437,7 @@ void TestStage12ExplicitTranscriptAndCommitmentContext() {
          "Commitment verification must accept the explicit suite overload");
 
   const Bytes default_commitment =
-      tecdsa::core::commitment::ComputeCommitment("stage12", message, randomness);
+      ComputeCommitment("stage12", message, randomness);
   Expect(default_commitment != explicit_hash_commitment,
          "Explicit commitment hash selection must override the default compatibility path");
 }

@@ -230,6 +230,10 @@ AuxRsaParamProof BuildAuxRsaParamProofStrict(
     TECDSA_THROW_ARGUMENT(
         "cannot build aux param proof from invalid parameters");
   }
+  if (context.challenge_group == nullptr) {
+    TECDSA_THROW_ARGUMENT(
+        "aux strict proof requires an explicit challenge group");
+  }
   const spi::AuxRsaParamsBigInt params_big = spi::ToBigIntParams(params);
   if (!IsLikelySquareFreeModulus(params_big.n_tilde)) {
     TECDSA_THROW_ARGUMENT(
@@ -238,11 +242,11 @@ AuxRsaParamProof BuildAuxRsaParamProofStrict(
 
   BigInt alpha;
   do {
-    alpha = spi::RandomBelow(Scalar::ModulusQMpInt());
+    alpha = spi::RandomBelow(context.challenge_group->order());
   } while (alpha == 0);
   BigInt r;
   do {
-    r = spi::RandomBelow(Scalar::ModulusQMpInt());
+    r = spi::RandomBelow(context.challenge_group->order());
   } while (r == 0);
 
   const BigInt c1 = spi::PowMod(params_big.h1, alpha, params_big.n_tilde);
@@ -271,6 +275,9 @@ bool VerifyAuxRsaParamProofStrict(const AuxRsaParams& params,
                                   const AuxRsaParamProof& proof,
                                   const StrictProofVerifierContext& context) {
   if (!ValidateAuxRsaParams(params)) {
+    return false;
+  }
+  if (context.challenge_group == nullptr) {
     return false;
   }
   const spi::AuxRsaParamsBigInt params_big = spi::ToBigIntParams(params);

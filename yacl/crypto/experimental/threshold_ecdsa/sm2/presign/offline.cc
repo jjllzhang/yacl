@@ -101,7 +101,8 @@ void OfflineParty::EnsureRound1Prepared() {
   local_k_i_ = internal::RandomNonZeroSm2Scalar();
   local_K_i_ = ECPoint::GeneratorMultiply(local_k_i_);
   const auto commit = core::commitment::CommitMessage(
-      kPhase1CommitDomain, local_K_i_.ToCompressedBytes());
+      core::DefaultSm2Suite(), kPhase1CommitDomain,
+      local_K_i_.ToCompressedBytes());
   local_randomness_ = commit.randomness;
   round1_ = Round1Msg{.commitment = commit.commitment};
   phase1_commitments_[cfg_.self_id] = commit.commitment;
@@ -215,10 +216,10 @@ OfflineState OfflineParty::Finalize(const PeerMap<Round3Msg>& peer_round3) {
     if (commitment_it == phase1_commitments_.end()) {
       TECDSA_THROW_LOGIC("missing phase1 commitment for peer");
     }
-    if (!core::commitment::VerifyCommitment(kPhase1CommitDomain,
-                                            msg.K_i.ToCompressedBytes(),
-                                            msg.randomness,
-                                            commitment_it->second)) {
+    if (!core::commitment::VerifyCommitment(
+            core::DefaultSm2Suite(), kPhase1CommitDomain,
+            msg.K_i.ToCompressedBytes(), msg.randomness,
+            commitment_it->second)) {
       TECDSA_THROW_ARGUMENT("SM2 offline nonce opening verification failed");
     }
     if (!internal::VerifySchnorrProof(cfg_.session_id, peer, msg.K_i,

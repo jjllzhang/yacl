@@ -15,6 +15,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 
 #include <exception>
+#include <string>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
@@ -24,26 +25,30 @@
 namespace tecdsa::core::proof {
 namespace {
 
-constexpr char kSchnorrProofId[] = "GG2019/Schnorr/v1";
-
-Scalar BuildSchnorrChallenge(const Bytes& session_id, PartyIndex party_id,
+Scalar BuildSchnorrChallenge(const ThresholdSuite& suite,
+                             const Bytes& session_id, PartyIndex party_id,
                              const ECPoint& statement, const ECPoint& a) {
-  transcript::Transcript transcript;
+  transcript::Transcript transcript(suite.transcript_hash);
   const Bytes statement_bytes = encoding::EncodePoint(statement);
   const Bytes a_bytes = encoding::EncodePoint(a);
-  transcript.append_proof_id(kSchnorrProofId);
+  const std::string proof_id =
+      suite.scheme == SchemeId::kSm2
+          ? "SM2/Schnorr/v1"
+          : suite.proof_domain_prefix + "/Schnorr/v1";
+  transcript.append_proof_id(proof_id);
   transcript.append_session_id(session_id);
   transcript.append_u32_be("party_id", party_id);
   transcript.append_fields({
       transcript::TranscriptFieldRef{.label = "X", .data = statement_bytes},
       transcript::TranscriptFieldRef{.label = "A", .data = a_bytes},
   });
-  return transcript.challenge_scalar_mod_q();
+  return transcript.challenge_scalar(statement.group());
 }
 
 }  // namespace
 
-SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
+SchnorrProof BuildSchnorrProof(const ThresholdSuite& suite,
+                               const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,
                                const Scalar& witness) {
   if (witness.value() == 0) {
@@ -51,9 +56,10 @@ SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
   }
 
   while (true) {
-    const Scalar r = vss::RandomNonZeroScalar();
+    const Scalar r = vss::RandomNonZeroScalar(witness.group());
     const ECPoint a = ECPoint::GeneratorMultiply(r);
-    const Scalar e = BuildSchnorrChallenge(session_id, prover_id, statement, a);
+    const Scalar e =
+        BuildSchnorrChallenge(suite, session_id, prover_id, statement, a);
     const Scalar z = r + (e * witness);
     if (z.value() == 0) {
       continue;
@@ -62,7 +68,8 @@ SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
   }
 }
 
-bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
+bool VerifySchnorrProof(const ThresholdSuite& suite, const Bytes& session_id,
+                        PartyIndex prover_id,
                         const ECPoint& statement, const SchnorrProof& proof) {
   if (proof.z.value() == 0) {
     return false;
@@ -70,7 +77,7 @@ bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
 
   try {
     const Scalar e =
-        BuildSchnorrChallenge(session_id, prover_id, statement, proof.a);
+        BuildSchnorrChallenge(suite, session_id, prover_id, statement, proof.a);
     const ECPoint lhs = ECPoint::GeneratorMultiply(proof.z);
 
     ECPoint rhs = proof.a;

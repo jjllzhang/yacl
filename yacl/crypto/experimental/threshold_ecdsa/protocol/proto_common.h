@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -56,7 +57,10 @@ Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
                             PartyIndex party_id);
 
 tecdsa::StrictProofVerifierContext BuildProofContext(const Bytes& session_id,
-                                                     PartyIndex prover_id);
+                                                     PartyIndex prover_id,
+                                                     std::optional<PartyIndex>
+                                                         verifier_id =
+                                                             std::nullopt);
 
 SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,
