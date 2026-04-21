@@ -19,6 +19,8 @@
 #include <cstddef>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
 
 namespace tecdsa::core::paillier {
@@ -27,6 +29,34 @@ namespace {
 constexpr size_t kMaxKeygenAttempts = 128;
 
 }  // namespace
+
+const BigInt& MinPaillierModulusQ8() {
+  static const BigInt q_pow_8 = []() {
+    BigInt out(1);
+    const BigInt& q = Scalar::ModulusQMpInt();
+    for (size_t i = 0; i < 8; ++i) {
+      out *= q;
+    }
+    return out;
+  }();
+  return q_pow_8;
+}
+
+void ValidatePaillierPublicKeyOrThrow(const PaillierPublicKey& pub) {
+  if (pub.n <= MinPaillierModulusQ8()) {
+    TECDSA_THROW_ARGUMENT("Paillier modulus must satisfy N > q^8");
+  }
+}
+
+StrictProofVerifierContext BuildProofContext(
+    const Bytes& session_id, PartyIndex prover_id,
+    std::optional<PartyIndex> verifier_id) {
+  StrictProofVerifierContext context;
+  context.session_id = session_id;
+  context.prover_id = prover_id;
+  context.verifier_id = verifier_id;
+  return context;
+}
 
 PaillierProvider::PaillierProvider(unsigned long modulus_bits) {
   if (modulus_bits < 256) {

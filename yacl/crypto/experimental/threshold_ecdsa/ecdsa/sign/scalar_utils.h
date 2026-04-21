@@ -12,4 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_sign_internal.h"
+#pragma once
+
+#include <exception>
+#include <optional>
+
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+
+namespace tecdsa::ecdsa::sign {
+
+inline std::optional<Scalar> InvertScalar(const Scalar& scalar) {
+  if (scalar.value() == 0) {
+    return std::nullopt;
+  }
+  try {
+    return scalar.InverseModQ();
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+}  // namespace tecdsa::ecdsa::sign

@@ -22,6 +22,9 @@
 
 namespace tecdsa::ecdsa::verify {
 
+Scalar XCoordinateModQ(const ECPoint& point);
+bool IsHighScalar(const Scalar& scalar);
+
 // Verify secp256k1 ECDSA by the standard equation:
 //   R' = (m * s^-1)G + (r * s^-1)Y, accept iff r == x(R') mod q.
 bool VerifyEcdsaSignatureMath(const ECPoint& public_key,

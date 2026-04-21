@@ -21,7 +21,6 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 
 namespace tecdsa::ecdsa::verify {
-namespace {
 
 Scalar XCoordinateModQ(const ECPoint& point) {
   const Bytes compressed = point.ToCompressedBytes();
@@ -32,7 +31,10 @@ Scalar XCoordinateModQ(const ECPoint& point) {
   return Scalar::FromBigEndianModQ(x_bytes);
 }
 
-}  // namespace
+bool IsHighScalar(const Scalar& scalar) {
+  static const auto kHalfOrder = Scalar::ModulusQMpInt() >> 1;
+  return scalar.value() > kHalfOrder;
+}
 
 bool VerifyEcdsaSignatureMath(const ECPoint& public_key,
                               std::span<const uint8_t> msg32, const Scalar& r,

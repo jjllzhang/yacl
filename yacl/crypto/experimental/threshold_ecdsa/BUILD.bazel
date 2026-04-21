@@ -23,10 +23,7 @@ TSIG_CORE_SRCS = glob([
     "crypto/*.cc",
 ], exclude = [
     "crypto/ecdsa_verify.cc",
-]) + [
-    "protocol/proto_common.cc",
-    "protocol/proto_sign_internal.cc",
-]
+])
 
 TSIG_CORE_HDRS = glob([
     "common/*.h",
@@ -34,22 +31,13 @@ TSIG_CORE_HDRS = glob([
     "crypto/*.h",
 ], exclude = [
     "crypto/ecdsa_verify.h",
-]) + [
-    # Stage10 routes protocol/messages.h through canonical scheme-owned message
-    # headers, so keep those compat-facing definitions visible from tsig_core
-    # until stage11 moves protocol/* fully out of the public core surface.
-    "ecdsa/keygen/messages.h",
-    "ecdsa/sign/messages.h",
-    "ecdsa/sign/relation_proofs.h",
-    "protocol/messages.h",
-    "protocol/proto_common.h",
-    "protocol/proto_sign_internal.h",
-    "protocol/types.h",
-]
+])
 
 TSIG_ECDSA_SRCS = glob([
     "ecdsa/**/*.cc",
 ]) + [
+    "protocol/proto_common.cc",
+    "protocol/proto_sign_internal.cc",
     "crypto/ecdsa_verify.cc",
     "protocol/keygen.cc",
     "protocol/sign.cc",
@@ -59,8 +47,12 @@ TSIG_ECDSA_HDRS = glob([
     "ecdsa/**/*.h",
 ]) + [
     "crypto/ecdsa_verify.h",
+    "protocol/messages.h",
     "protocol/keygen.h",
+    "protocol/proto_common.h",
+    "protocol/proto_sign_internal.h",
     "protocol/sign.h",
+    "protocol/types.h",
 ]
 
 TSIG_COMMON_DEPS = [

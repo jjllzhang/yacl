@@ -22,14 +22,16 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
 
 namespace tecdsa::sm2::keygen {
 namespace {
 
 namespace mta = tecdsa::core::mta;
+namespace paillier = tecdsa::core::paillier;
 
 constexpr uint32_t kMinPaillierKeygenBits = 2048;
 constexpr uint32_t kMinAuxRsaKeygenBits = 2048;
@@ -166,7 +168,7 @@ void KeygenParty::EnsureLocalPaillierPrepared() {
   for (size_t attempt = 0; attempt < kMaxPaillierKeygenAttempts; ++attempt) {
     auto candidate =
         std::make_shared<PaillierProvider>(cfg_.paillier_modulus_bits);
-    if (candidate->modulus_n_bigint() > proto::MinPaillierModulusQ8()) {
+    if (candidate->modulus_n_bigint() > paillier::MinPaillierModulusQ8()) {
       local_paillier_ = std::move(candidate);
       local_paillier_public_ = PaillierPublicKey{
           .n = local_paillier_->modulus_n_bigint(),
@@ -184,8 +186,7 @@ void KeygenParty::EnsureLocalProofsPrepared() {
   }
 
   EnsureLocalPaillierPrepared();
-  const StrictProofVerifierContext context =
-      proto::BuildProofContext(cfg_.session_id, cfg_.self_id);
+  const auto context = paillier::BuildProofContext(cfg_.session_id, cfg_.self_id);
   local_aux_rsa_params_ =
       GenerateAuxRsaParams(cfg_.aux_rsa_modulus_bits, cfg_.self_id);
   local_square_free_proof_ = BuildSquareFreeProofGmr98(
@@ -230,12 +231,11 @@ KeygenRound2Out KeygenParty::MakeRound2(
 
   for (PartyIndex peer : peers_) {
     const auto& msg = peer_round1.at(peer);
-    proto::ValidatePaillierPublicKeyOrThrow(msg.paillier_public);
+    paillier::ValidatePaillierPublicKeyOrThrow(msg.paillier_public);
     if (!ValidateAuxRsaParams(msg.aux_rsa_params)) {
       TECDSA_THROW_ARGUMENT("peer aux RSA parameters are invalid");
     }
-    const StrictProofVerifierContext context =
-        proto::BuildProofContext(cfg_.session_id, peer);
+    const auto context = paillier::BuildProofContext(cfg_.session_id, peer);
     if (!VerifyAuxRsaParamProofStrict(msg.aux_rsa_params, msg.aux_param_proof,
                                       context)) {
       TECDSA_THROW_ARGUMENT("peer aux parameter proof verification failed");
@@ -420,8 +420,7 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound4Msg>& peer_round4) 
                                       msg.gamma_proof)) {
       TECDSA_THROW_ARGUMENT("peer gamma Schnorr proof verification failed");
     }
-    const StrictProofVerifierContext context =
-        proto::BuildProofContext(cfg_.session_id, peer);
+    const auto context = paillier::BuildProofContext(cfg_.session_id, peer);
     if (!VerifySquareFreeProofGmr98(all_paillier_public_.at(peer).n,
                                     msg.square_free_proof, context)) {
       TECDSA_THROW_ARGUMENT("peer square-free proof verification failed");

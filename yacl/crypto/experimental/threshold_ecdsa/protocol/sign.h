@@ -15,6 +15,7 @@
 #pragma once
 
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
 
 namespace tecdsa::proto {

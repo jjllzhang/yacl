@@ -15,7 +15,10 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 
+#include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/math/mpint/mp_int.h"
 
 namespace tecdsa::core::paillier {
@@ -32,6 +35,18 @@ using PaillierCiphertextWithRandomBigInt = PaillierCiphertextWithRandom;
 struct PaillierPublicKey {
   BigInt n = BigInt(0);
 };
+
+struct StrictProofVerifierContext {
+  Bytes session_id;
+  std::optional<PartyIndex> prover_id;
+  std::optional<PartyIndex> verifier_id;
+};
+
+StrictProofVerifierContext BuildProofContext(
+    const Bytes& session_id, PartyIndex prover_id,
+    std::optional<PartyIndex> verifier_id = std::nullopt);
+const BigInt& MinPaillierModulusQ8();
+void ValidatePaillierPublicKeyOrThrow(const PaillierPublicKey& pub);
 
 class PaillierProvider {
  public:

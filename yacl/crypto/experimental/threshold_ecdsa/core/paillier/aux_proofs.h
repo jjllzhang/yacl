@@ -15,20 +15,11 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <span>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 
 namespace tecdsa::core::paillier {
-
-struct StrictProofVerifierContext {
-  Bytes session_id;
-  std::optional<PartyIndex> prover_id;
-  std::optional<PartyIndex> verifier_id;
-};
 
 struct AuxRsaParams {
   BigInt n_tilde = BigInt(0);

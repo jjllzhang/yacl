@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <exception>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -26,19 +27,21 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/scalar_utils.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
 
 namespace tecdsa::ecdsa::sign {
-namespace proto = tecdsa::proto;
 namespace {
 
 namespace mta = tecdsa::core::mta;
+namespace paillier = tecdsa::core::paillier;
 namespace relation = tecdsa::ecdsa::sign;
 namespace verify = tecdsa::ecdsa::verify;
 
@@ -126,17 +129,6 @@ void ValidateCommitmentOrThrow(const Bytes& commitment,
   }
 }
 
-std::optional<Scalar> TryInvertScalar(const Scalar& scalar) {
-  if (scalar.value() == 0) {
-    return std::nullopt;
-  }
-  try {
-    return scalar.InverseModQ();
-  } catch (const std::exception&) {
-    return std::nullopt;
-  }
-}
-
 }  // namespace
 
 SignParty::SignParty(SignConfig cfg)
@@ -179,19 +171,20 @@ SignParty::SignParty(SignConfig cfg)
     const auto& aux_param_proof =
         cfg_.public_keygen_data.all_aux_param_proofs.at(party);
 
-    proto::ValidatePaillierPublicKeyOrThrow(paillier_public);
-    if (!ValidateAuxRsaParams(aux_params)) {
+    paillier::ValidatePaillierPublicKeyOrThrow(paillier_public);
+    if (!paillier::ValidateAuxRsaParams(aux_params)) {
       TECDSA_THROW_ARGUMENT("public aux RSA parameters are invalid");
     }
 
-    const StrictProofVerifierContext proof_context =
-        proto::BuildProofContext(cfg_.keygen_session_id, party);
-    if (!VerifySquareFreeProofGmr98(paillier_public.n, square_free_proof,
-                                    proof_context)) {
+    const paillier::StrictProofVerifierContext proof_context =
+        paillier::BuildProofContext(cfg_.keygen_session_id, party);
+    if (!paillier::VerifySquareFreeProofGmr98(paillier_public.n,
+                                              square_free_proof,
+                                              proof_context)) {
       TECDSA_THROW_ARGUMENT("square-free proof verification failed");
     }
-    if (!VerifyAuxRsaParamProofStrict(aux_params, aux_param_proof,
-                                      proof_context)) {
+    if (!paillier::VerifyAuxRsaParamProofStrict(aux_params, aux_param_proof,
+                                                proof_context)) {
       TECDSA_THROW_ARGUMENT("aux parameter proof verification failed");
     }
   }
@@ -312,8 +305,8 @@ std::vector<SignRound2Request> SignParty::MakeRound2Requests(
   }
 
   EnsurePhase1Prepared();
-  proto::RequireExactlyPeers(peer_round1, cfg_.participants, cfg_.self_id,
-                             "peer_round1");
+  core::participant::RequireExactlyPeers(peer_round1, cfg_.participants,
+                                         cfg_.self_id, "peer_round1");
 
   for (PartyIndex peer : peers_) {
     const SignRound1Msg& msg = peer_round1.at(peer);
@@ -514,8 +507,8 @@ SignRound4Msg SignParty::MakeRound4(const PeerMap<SignRound3Msg>& peer_round3) {
     TECDSA_THROW_LOGIC("MakeRound3 must be completed before MakeRound4");
   }
 
-  proto::RequireExactlyPeers(peer_round3, cfg_.participants, cfg_.self_id,
-                             "peer_round3");
+  core::participant::RequireExactlyPeers(peer_round3, cfg_.participants,
+                                         cfg_.self_id, "peer_round3");
   Scalar delta = local_delta_i_;
   for (PartyIndex peer : peers_) {
     delta = delta + peer_round3.at(peer).delta_i;
@@ -524,7 +517,7 @@ SignRound4Msg SignParty::MakeRound4(const PeerMap<SignRound3Msg>& peer_round3) {
     TECDSA_THROW_ARGUMENT("aggregated delta is zero");
   }
 
-  const std::optional<Scalar> delta_inv = TryInvertScalar(delta);
+  const std::optional<Scalar> delta_inv = InvertScalar(delta);
   if (!delta_inv.has_value()) {
     TECDSA_THROW_ARGUMENT("failed to invert aggregated delta");
   }
@@ -548,8 +541,8 @@ SignRound5AMsg SignParty::MakeRound5A(
     TECDSA_THROW_LOGIC("MakeRound4 must be completed before MakeRound5A");
   }
 
-  proto::RequireExactlyPeers(peer_round4, cfg_.participants, cfg_.self_id,
-                             "peer_round4");
+  core::participant::RequireExactlyPeers(peer_round4, cfg_.participants,
+                                         cfg_.self_id, "peer_round4");
   std::vector<ECPoint> gamma_points;
   gamma_points.reserve(cfg_.participants.size());
   gamma_points.push_back(local_Gamma_i_);
@@ -581,7 +574,7 @@ SignRound5AMsg SignParty::MakeRound5A(
     TECDSA_THROW_ARGUMENT(std::string("failed to compute R in round5A: ") +
                           ex.what());
   }
-  r_ = proto::XCoordinateModQ(R_);
+  r_ = verify::XCoordinateModQ(R_);
   if (r_.value() == 0) {
     TECDSA_THROW_ARGUMENT("computed r is zero");
   }
@@ -599,8 +592,8 @@ SignRound5BMsg SignParty::MakeRound5B(
     TECDSA_THROW_LOGIC("MakeRound5A must be completed before MakeRound5B");
   }
 
-  proto::RequireExactlyPeers(peer_round5a, cfg_.participants, cfg_.self_id,
-                             "peer_round5a");
+  core::participant::RequireExactlyPeers(peer_round5a, cfg_.participants,
+                                         cfg_.self_id, "peer_round5a");
   for (PartyIndex peer : peers_) {
     ValidateCommitmentOrThrow(peer_round5a.at(peer).commitment,
                               "sign round5A commitment");
@@ -629,8 +622,8 @@ SignRound5CMsg SignParty::MakeRound5C(
     TECDSA_THROW_LOGIC("MakeRound5B must be completed before MakeRound5C");
   }
 
-  proto::RequireExactlyPeers(peer_round5b, cfg_.participants, cfg_.self_id,
-                             "peer_round5b");
+  core::participant::RequireExactlyPeers(peer_round5b, cfg_.participants,
+                                         cfg_.self_id, "peer_round5b");
 
   std::vector<ECPoint> v_points;
   std::vector<ECPoint> a_points;
@@ -699,8 +692,8 @@ SignRound5DMsg SignParty::MakeRound5D(
     TECDSA_THROW_LOGIC("MakeRound5C must be completed before MakeRound5D");
   }
 
-  proto::RequireExactlyPeers(peer_round5c, cfg_.participants, cfg_.self_id,
-                             "peer_round5c");
+  core::participant::RequireExactlyPeers(peer_round5c, cfg_.participants,
+                                         cfg_.self_id, "peer_round5c");
   for (PartyIndex peer : peers_) {
     ValidateCommitmentOrThrow(peer_round5c.at(peer).commitment,
                               "sign round5C commitment");
@@ -723,8 +716,8 @@ Scalar SignParty::RevealRound5E(const PeerMap<SignRound5DMsg>& peer_round5d) {
     TECDSA_THROW_LOGIC("MakeRound5D must be completed before RevealRound5E");
   }
 
-  proto::RequireExactlyPeers(peer_round5d, cfg_.participants, cfg_.self_id,
-                             "peer_round5d");
+  core::participant::RequireExactlyPeers(peer_round5d, cfg_.participants,
+                                         cfg_.self_id, "peer_round5d");
   std::vector<ECPoint> u_points;
   std::vector<ECPoint> t_points;
   u_points.reserve(cfg_.participants.size());
@@ -772,8 +765,8 @@ Signature SignParty::Finalize(const PeerMap<Scalar>& peer_round5e) {
     TECDSA_THROW_LOGIC("RevealRound5E must be completed before Finalize");
   }
 
-  proto::RequireExactlyPeers(peer_round5e, cfg_.participants, cfg_.self_id,
-                             "peer_round5e");
+  core::participant::RequireExactlyPeers(peer_round5e, cfg_.participants,
+                                         cfg_.self_id, "peer_round5e");
   Scalar s = *round5e_;
   for (PartyIndex peer : peers_) {
     s = s + peer_round5e.at(peer);
@@ -783,7 +776,7 @@ Signature SignParty::Finalize(const PeerMap<Scalar>& peer_round5e) {
   }
 
   Scalar canonical_s = s;
-  if (proto::IsHighScalar(canonical_s)) {
+  if (verify::IsHighScalar(canonical_s)) {
     canonical_s = Scalar() - canonical_s;
   }
   if (!verify::VerifyEcdsaSignatureMath(cfg_.public_keygen_data.y, cfg_.msg32,

@@ -14,14 +14,6 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
 
-#include <cstddef>
-#include <span>
-
-#include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
-
 namespace tecdsa::proto {
 
 void ValidateParticipantsOrThrow(const std::vector<PartyIndex>& participants,
@@ -43,12 +35,9 @@ Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
   return core::vss::EvaluatePolynomialAt(coefficients, party_id);
 }
 
-StrictProofVerifierContext BuildProofContext(const Bytes& session_id,
-                                             PartyIndex prover_id) {
-  StrictProofVerifierContext context;
-  context.session_id = session_id;
-  context.prover_id = prover_id;
-  return context;
+tecdsa::StrictProofVerifierContext BuildProofContext(const Bytes& session_id,
+                                                     PartyIndex prover_id) {
+  return core::paillier::BuildProofContext(session_id, prover_id);
 }
 
 SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
@@ -64,22 +53,12 @@ bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                                          proof);
 }
 
-const BigInt& MinPaillierModulusQ8() {
-  static const BigInt q_pow_8 = []() {
-    BigInt out(1);
-    const BigInt& q = Scalar::ModulusQMpInt();
-    for (size_t i = 0; i < 8; ++i) {
-      out *= q;
-    }
-    return out;
-  }();
-  return q_pow_8;
+const tecdsa::BigInt& MinPaillierModulusQ8() {
+  return core::paillier::MinPaillierModulusQ8();
 }
 
-void ValidatePaillierPublicKeyOrThrow(const PaillierPublicKey& pub) {
-  if (pub.n <= MinPaillierModulusQ8()) {
-    TECDSA_THROW_ARGUMENT("Paillier modulus must satisfy N > q^8");
-  }
+void ValidatePaillierPublicKeyOrThrow(const tecdsa::PaillierPublicKey& pub) {
+  core::paillier::ValidatePaillierPublicKeyOrThrow(pub);
 }
 
 std::unordered_map<PartyIndex, Scalar> ComputeLagrangeAtZero(
@@ -92,18 +71,11 @@ ECPoint SumPointsOrThrow(const std::vector<ECPoint>& points) {
 }
 
 Scalar XCoordinateModQ(const ECPoint& point) {
-  const Bytes compressed = point.ToCompressedBytes();
-  if (compressed.size() != 33) {
-    TECDSA_THROW_ARGUMENT("invalid compressed point length");
-  }
-
-  const std::span<const uint8_t> x_bytes(compressed.data() + 1, 32);
-  return Scalar::FromBigEndianModQ(x_bytes);
+  return ecdsa::verify::XCoordinateModQ(point);
 }
 
 bool IsHighScalar(const Scalar& scalar) {
-  static const BigInt kHalfOrder = Scalar::ModulusQMpInt() >> 1;
-  return scalar.value() > kHalfOrder;
+  return ecdsa::verify::IsHighScalar(scalar);
 }
 
 }  // namespace tecdsa::proto

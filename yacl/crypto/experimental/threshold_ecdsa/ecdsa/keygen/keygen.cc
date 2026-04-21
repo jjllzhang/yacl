@@ -22,15 +22,17 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
 
 namespace tecdsa::ecdsa::keygen {
-namespace proto = tecdsa::proto;
 namespace {
+
+namespace paillier = tecdsa::core::paillier;
 
 constexpr uint32_t kMinPaillierKeygenBits = 2048;
 constexpr uint32_t kMinAuxRsaKeygenBits = 2048;
@@ -109,7 +111,7 @@ void KeygenParty::EnsureLocalPaillierPrepared() {
     auto candidate =
         std::make_shared<PaillierProvider>(cfg_.paillier_modulus_bits);
     const BigInt candidate_n = candidate->modulus_n_bigint();
-    if (candidate_n > proto::MinPaillierModulusQ8()) {
+    if (candidate_n > paillier::MinPaillierModulusQ8()) {
       local_paillier_ = std::move(candidate);
       local_paillier_public_ = PaillierPublicKey{.n = candidate_n};
       return;
@@ -125,8 +127,7 @@ void KeygenParty::EnsureLocalProofsPrepared() {
   }
 
   EnsureLocalPaillierPrepared();
-  const StrictProofVerifierContext context =
-      proto::BuildProofContext(cfg_.session_id, cfg_.self_id);
+  const auto context = paillier::BuildProofContext(cfg_.session_id, cfg_.self_id);
   local_aux_rsa_params_ =
       GenerateAuxRsaParams(cfg_.aux_rsa_modulus_bits, cfg_.self_id);
   local_square_free_proof_ = BuildSquareFreeProofGmr98(
@@ -175,18 +176,17 @@ KeygenRound2Out KeygenParty::MakeRound2(
   }
 
   (void)MakeRound1();
-  proto::RequireExactlyPeers(peer_round1, cfg_.participants, cfg_.self_id,
-                             "peer_round1");
+  core::participant::RequireExactlyPeers(peer_round1, cfg_.participants,
+                                         cfg_.self_id, "peer_round1");
 
   for (PartyIndex peer : peers_) {
     const auto it = peer_round1.find(peer);
     const KeygenRound1Msg& msg = it->second;
-    proto::ValidatePaillierPublicKeyOrThrow(msg.paillier_public);
+    paillier::ValidatePaillierPublicKeyOrThrow(msg.paillier_public);
     if (!ValidateAuxRsaParams(msg.aux_rsa_params)) {
       TECDSA_THROW_ARGUMENT("peer aux RSA parameters are invalid");
     }
-    const StrictProofVerifierContext context =
-        proto::BuildProofContext(cfg_.session_id, peer);
+    const auto context = paillier::BuildProofContext(cfg_.session_id, peer);
     if (!VerifyAuxRsaParamProofStrict(msg.aux_rsa_params, msg.aux_param_proof,
                                       context)) {
       TECDSA_THROW_ARGUMENT("peer aux parameter proof verification failed");
@@ -229,10 +229,10 @@ KeygenRound3Msg KeygenParty::MakeRound3(
   if (!round2_.has_value()) {
     TECDSA_THROW_LOGIC("MakeRound2 must be completed before MakeRound3");
   }
-  proto::RequireExactlyPeers(peer_round2, cfg_.participants, cfg_.self_id,
-                             "peer_round2");
-  proto::RequireExactlyPeers(shares_for_self, cfg_.participants, cfg_.self_id,
-                             "shares_for_self");
+  core::participant::RequireExactlyPeers(peer_round2, cfg_.participants,
+                                         cfg_.self_id, "peer_round2");
+  core::participant::RequireExactlyPeers(shares_for_self, cfg_.participants,
+                                         cfg_.self_id, "shares_for_self");
 
   Scalar x_sum = local_shares_.at(cfg_.self_id);
   std::vector<ECPoint> y_points;
@@ -299,8 +299,8 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound3Msg>& peer_round3) 
     TECDSA_THROW_LOGIC("MakeRound3 must be completed before Finalize");
   }
 
-  proto::RequireExactlyPeers(peer_round3, cfg_.participants, cfg_.self_id,
-                             "peer_round3");
+  core::participant::RequireExactlyPeers(peer_round3, cfg_.participants,
+                                         cfg_.self_id, "peer_round3");
 
   PublicKeygenData public_data;
   public_data.y = aggregated_y_;
@@ -320,8 +320,7 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound3Msg>& peer_round3) 
     if (pk_it == all_paillier_public_.end()) {
       TECDSA_THROW_LOGIC("missing stored Paillier public key for peer");
     }
-    const StrictProofVerifierContext context =
-        proto::BuildProofContext(cfg_.session_id, peer);
+    const auto context = paillier::BuildProofContext(cfg_.session_id, peer);
     if (!VerifySquareFreeProofGmr98(pk_it->second.n, msg.square_free_proof,
                                     context)) {
       TECDSA_THROW_ARGUMENT("peer square-free proof verification failed");

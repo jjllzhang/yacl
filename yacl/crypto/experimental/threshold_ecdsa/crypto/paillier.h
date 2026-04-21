@@ -24,5 +24,7 @@ using PaillierCiphertextWithRandomBigInt =
     core::paillier::PaillierCiphertextWithRandomBigInt;
 using PaillierPublicKey = core::paillier::PaillierPublicKey;
 using PaillierProvider = core::paillier::PaillierProvider;
+using core::paillier::MinPaillierModulusQ8;
+using core::paillier::ValidatePaillierPublicKeyOrThrow;
 
 }  // namespace tecdsa

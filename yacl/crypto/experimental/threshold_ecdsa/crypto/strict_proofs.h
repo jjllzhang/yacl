@@ -25,6 +25,7 @@ using StrictProofVerifierContext = core::paillier::StrictProofVerifierContext;
 using AuxRsaParams = core::paillier::AuxRsaParams;
 using SquareFreeProof = core::paillier::SquareFreeProof;
 using AuxRsaParamProof = core::paillier::AuxRsaParamProof;
+using core::paillier::BuildProofContext;
 using core::paillier::BuildAuxRsaParamProofStrict;
 using core::paillier::BuildSquareFreeProofGmr98;
 using core::paillier::DecodeAuxRsaParamProof;

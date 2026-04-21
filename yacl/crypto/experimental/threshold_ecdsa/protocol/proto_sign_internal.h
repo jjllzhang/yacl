@@ -16,9 +16,11 @@
 
 #include <optional>
 
+// Compatibility facade for legacy protocol-level MtA helpers.
+// New code should include core/mta/{proofs,session}.h directly.
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/scalar_utils.h"
 
 namespace tecdsa::sign_internal {
 
@@ -44,6 +46,6 @@ using tecdsa::core::mta::VerifyA1Range;
 using tecdsa::core::mta::VerifyA2MtAwc;
 using tecdsa::core::mta::VerifyA3MtA;
 
-std::optional<Scalar> InvertScalar(const Scalar& scalar);
+using tecdsa::ecdsa::sign::InvertScalar;
 
 }  // namespace tecdsa::sign_internal
