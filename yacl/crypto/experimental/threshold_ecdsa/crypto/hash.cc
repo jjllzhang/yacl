@@ -38,6 +38,21 @@ const ThresholdSuite& DefaultEcdsaSuite() {
   return kDefault;
 }
 
+const ThresholdSuite& DefaultSm2Suite() {
+  static const ThresholdSuite kDefault = []() {
+    ThresholdSuite suite;
+    suite.scheme = SchemeId::kSm2;
+    suite.curve = CurveId::kSm2P256V1;
+    suite.transcript_hash = HashId::kSm3;
+    suite.commitment_hash = HashId::kSm3;
+    suite.message_hash = HashId::kSm3;
+    suite.proof_domain_prefix = "GG2019";
+    suite.normalize_low_s = false;
+    return suite;
+  }();
+  return kDefault;
+}
+
 Bytes Hash(HashId hash_id, std::span<const uint8_t> data) {
   switch (hash_id) {
     case HashId::kSha256: {

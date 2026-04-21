@@ -25,8 +25,14 @@ namespace tecdsa::core::mta {
 namespace {
 
 std::shared_ptr<const GroupContext> ResolveGroup(
-    std::shared_ptr<const GroupContext> group) {
-  return group == nullptr ? DefaultGroupContext() : std::move(group);
+    const ThresholdSuite& suite, std::shared_ptr<const GroupContext> group) {
+  if (group == nullptr) {
+    group = GroupContext::Create(suite.curve);
+  }
+  if (group->curve_id() != suite.curve) {
+    TECDSA_THROW_ARGUMENT("PairwiseProductSession group must match suite curve");
+  }
+  return group;
 }
 
 void ValidateMtAwcSecretPointOrThrow(
@@ -87,7 +93,7 @@ size_t ExpectedPairwiseProductMessageCount(size_t peer_count) {
 
 PairwiseProductSession::PairwiseProductSession(Config cfg)
     : cfg_(std::move(cfg)) {
-  cfg_.group = ResolveGroup(std::move(cfg_.group));
+  cfg_.group = ResolveGroup(cfg_.suite, std::move(cfg_.group));
 }
 
 const PairwiseProductSession::Config& PairwiseProductSession::config() const {
@@ -148,7 +154,8 @@ PairwiseProductRequest PairwiseProductSession::CreateRequest(
 
   const A1RangeProof a1_proof =
       ProveA1Range(BuildProofContext(cfg_.session_id, cfg_.self_id,
-                                     args.responder_id, instance_id),
+                                     args.responder_id, instance_id,
+                                     cfg_.suite, cfg_.group),
                    n, *args.responder_aux, encrypted.ciphertext,
                    args.initiator_secret.mp_value(), encrypted.randomness);
 
@@ -200,7 +207,8 @@ PairwiseProductSession::ConsumeRequest(const PairwiseProductRequest& request,
   }
 
   if (!VerifyA1Range(BuildProofContext(cfg_.session_id, request.from,
-                                       cfg_.self_id, request.instance_id),
+                                       cfg_.self_id, request.instance_id,
+                                       cfg_.suite, cfg_.group),
                      n, *args.responder_aux, request.c1, request.a1_proof)) {
     TECDSA_THROW_ARGUMENT("pairwise product A1 proof verification failed");
   }
@@ -213,7 +221,7 @@ PairwiseProductSession::ConsumeRequest(const PairwiseProductRequest& request,
                                     args.public_witness_point);
   }
 
-  const BigInt y = RandomBelow(QPow5());
+  const BigInt y = RandomBelow(QPow5(cfg_.group));
   const BigInt r_b = SampleZnStar(n);
   const BigInt gamma = n + BigInt(1);
   const BigInt c1_pow_x =
@@ -236,13 +244,13 @@ PairwiseProductSession::ConsumeRequest(const PairwiseProductRequest& request,
   if (request.type == MtaType::kMta) {
     response.a3_proof = ProveA3MtA(
         BuildProofContext(cfg_.session_id, request.from, cfg_.self_id,
-                          request.instance_id),
+                          request.instance_id, cfg_.suite, cfg_.group),
         n, *args.initiator_aux, request.c1, c2,
         args.responder_secret.mp_value(), y, r_b);
   } else {
     response.a2_proof = ProveA2MtAwc(
         BuildProofContext(cfg_.session_id, request.from, cfg_.self_id,
-                          request.instance_id),
+                          request.instance_id, cfg_.suite, cfg_.group),
         n, *args.initiator_aux, request.c1, c2, *args.public_witness_point,
         args.responder_secret.mp_value(), y, r_b);
   }
@@ -301,7 +309,8 @@ PairwiseProductSession::ConsumeResponse(const PairwiseProductResponse& response,
       TECDSA_THROW_ARGUMENT("MtA response must carry only an A3 proof");
     }
     if (!VerifyA3MtA(BuildProofContext(cfg_.session_id, cfg_.self_id,
-                                       response.from, response.instance_id),
+                                       response.from, response.instance_id,
+                                       cfg_.suite, cfg_.group),
                      n, *args.initiator_aux, instance.c1, response.c2,
                      *response.a3_proof)) {
       TECDSA_THROW_ARGUMENT("pairwise product A3 proof verification failed");
@@ -311,7 +320,8 @@ PairwiseProductSession::ConsumeResponse(const PairwiseProductResponse& response,
       TECDSA_THROW_ARGUMENT("MtAwc response must carry only an A2 proof");
     }
     if (!VerifyA2MtAwc(BuildProofContext(cfg_.session_id, cfg_.self_id,
-                                         response.from, response.instance_id),
+                                         response.from, response.instance_id,
+                                         cfg_.suite, cfg_.group),
                        n, *args.initiator_aux, instance.c1, response.c2,
                        *args.public_witness_point, *response.a2_proof)) {
       TECDSA_THROW_ARGUMENT("pairwise product A2 proof verification failed");

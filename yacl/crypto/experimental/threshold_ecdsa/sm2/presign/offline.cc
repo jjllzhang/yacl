@@ -74,6 +74,7 @@ OfflineParty::OfflineParty(OfflineConfig cfg)
     : cfg_(std::move(cfg)),
       delta_session_({.session_id = cfg_.session_id,
                       .self_id = cfg_.self_id,
+                      .suite = core::DefaultSm2Suite(),
                       .group = internal::Sm2Group()}) {
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "sm2::presign::OfflineParty");

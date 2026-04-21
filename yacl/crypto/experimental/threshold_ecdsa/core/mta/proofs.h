@@ -15,9 +15,12 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
+#include <string>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
@@ -31,12 +34,17 @@ struct MtaProofContext {
   PartyIndex initiator_id = 0;
   PartyIndex responder_id = 0;
   Bytes instance_id;
+  HashId transcript_hash = HashId::kSha256;
+  std::shared_ptr<const GroupContext> group;
+  std::string proof_domain_prefix = "GG2019";
 };
 
 MtaProofContext BuildProofContext(const Bytes& session_id,
                                   PartyIndex initiator_id,
                                   PartyIndex responder_id,
-                                  const Bytes& instance_id);
+                                  const Bytes& instance_id,
+                                  const ThresholdSuite& suite,
+                                  std::shared_ptr<const GroupContext> group);
 
 struct A1RangeProof {
   BigInt z = BigInt(0);
@@ -76,7 +84,7 @@ struct A3MtAProof {
 
 BigInt RandomBelow(const BigInt& upper_exclusive);
 BigInt SampleZnStar(const BigInt& modulus_n);
-const BigInt& QPow5();
+BigInt QPow5(const std::shared_ptr<const GroupContext>& group);
 BigInt MulMod(const BigInt& lhs, const BigInt& rhs, const BigInt& modulus);
 BigInt PowMod(const BigInt& base, const BigInt& exp, const BigInt& modulus);
 

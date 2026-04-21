@@ -17,19 +17,19 @@
 #include <cstddef>
 #include <exception>
 #include <optional>
+#include <string>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
 
 namespace tecdsa::core::mta {
 namespace {
 
-constexpr char kA1RangeProofId[] = "GG2019/A1Range/v1";
-constexpr char kA2MtAwcProofId[] = "GG2019/A2MtAwc/v1";
-constexpr char kA3MtAProofId[] = "GG2019/A3MtA/v1";
+constexpr char kA1RangeProofName[] = "A1Range";
+constexpr char kA2MtAwcProofName[] = "A2MtAwc";
+constexpr char kA3MtAProofName[] = "A3MtA";
 
 BigInt NormalizeMod(const BigInt& value, const BigInt& modulus) {
   return bigint::NormalizeMod(value, modulus);
@@ -46,49 +46,37 @@ bool IsInRange(const BigInt& value, const BigInt& modulus) {
   return value >= 0 && value < modulus;
 }
 
-const BigInt& QPow3() {
-  static const BigInt q_pow_3 = []() {
-    BigInt out(1);
-    const BigInt& q = Scalar::ModulusQMpInt();
-    for (size_t i = 0; i < 3; ++i) {
-      out *= q;
-    }
-    return out;
-  }();
-  return q_pow_3;
+BigInt QPow(const BigInt& q, size_t exponent) {
+  BigInt out(1);
+  for (size_t i = 0; i < exponent; ++i) {
+    out *= q;
+  }
+  return out;
 }
 
-const BigInt& QPow7() {
-  static const BigInt q_pow_7 = []() {
-    BigInt out(1);
-    const BigInt& q = Scalar::ModulusQMpInt();
-    for (size_t i = 0; i < 7; ++i) {
-      out *= q;
-    }
-    return out;
-  }();
-  return q_pow_7;
+BigInt QPow3(const MtaProofContext& ctx) { return QPow(ctx.group->order(), 3); }
+
+BigInt QPow7(const MtaProofContext& ctx) { return QPow(ctx.group->order(), 7); }
+
+std::string BuildProofId(const MtaProofContext& ctx, const char* proof_name) {
+  return ctx.proof_domain_prefix + "/" + proof_name + "/v1";
 }
 
-const Bytes& CurveNameBytes() {
-  static const Bytes curve_bytes = []() {
-    const auto curve_name = DefaultGroupContext()->curve_name();
-    return Bytes(reinterpret_cast<const uint8_t*>(curve_name.data()),
-                 reinterpret_cast<const uint8_t*>(curve_name.data()) +
-                     curve_name.size());
-  }();
-  return curve_bytes;
+Bytes CurveNameBytes(const MtaProofContext& ctx) {
+  const auto curve_name = ctx.group->curve_name();
+  return Bytes(reinterpret_cast<const uint8_t*>(curve_name.data()),
+               reinterpret_cast<const uint8_t*>(curve_name.data()) +
+                   curve_name.size());
 }
 
-const Bytes& ModulusQBytes() {
-  static const Bytes q_bytes =
-      bigint::ToFixedWidth(DefaultGroupContext()->order(), 32);
-  return q_bytes;
+Bytes ModulusQBytes(const MtaProofContext& ctx) {
+  return bigint::ToFixedWidth(ctx.group->order(), ctx.group->scalar_size_bytes());
 }
 
 void AppendCommonMtaTranscriptFields(core::transcript::Transcript* transcript,
-                                     const char* proof_id,
+                                     const char* proof_name,
                                      const MtaProofContext& ctx) {
+  const std::string proof_id = BuildProofId(ctx, proof_name);
   transcript->append_proof_id(proof_id);
   transcript->append_session_id(ctx.session_id);
   transcript->append_u32_be("initiator", ctx.initiator_id);
@@ -97,9 +85,9 @@ void AppendCommonMtaTranscriptFields(core::transcript::Transcript* transcript,
       core::transcript::TranscriptFieldRef{
           .label = "mta_id", .data = ctx.instance_id},
       core::transcript::TranscriptFieldRef{
-          .label = "curve", .data = CurveNameBytes()},
+          .label = "curve", .data = CurveNameBytes(ctx)},
       core::transcript::TranscriptFieldRef{
-          .label = "q", .data = ModulusQBytes()},
+          .label = "q", .data = ModulusQBytes(ctx)},
   });
 }
 
@@ -107,8 +95,8 @@ Scalar BuildA1RangeChallenge(const MtaProofContext& ctx, const BigInt& n,
                              const BigInt& gamma, const AuxRsaParams& aux,
                              const BigInt& c, const BigInt& z, const BigInt& u,
                              const BigInt& w) {
-  core::transcript::Transcript transcript;
-  AppendCommonMtaTranscriptFields(&transcript, kA1RangeProofId, ctx);
+  core::transcript::Transcript transcript(ctx.transcript_hash);
+  AppendCommonMtaTranscriptFields(&transcript, kA1RangeProofName, ctx);
   const Bytes n_bytes = core::encoding::EncodeMpInt(n);
   const Bytes gamma_bytes = core::encoding::EncodeMpInt(gamma);
   const Bytes n_tilde_bytes = core::encoding::EncodeMpInt(aux.n_tilde);
@@ -131,7 +119,7 @@ Scalar BuildA1RangeChallenge(const MtaProofContext& ctx, const BigInt& n,
       core::transcript::TranscriptFieldRef{.label = "u", .data = u_bytes},
       core::transcript::TranscriptFieldRef{.label = "w", .data = w_bytes},
   });
-  return transcript.challenge_scalar_mod_q();
+  return transcript.challenge_scalar(ctx.group);
 }
 
 Scalar BuildA2MtAwcChallenge(const MtaProofContext& ctx, const BigInt& n,
@@ -139,8 +127,8 @@ Scalar BuildA2MtAwcChallenge(const MtaProofContext& ctx, const BigInt& n,
                              const BigInt& c1, const BigInt& c2,
                              const ECPoint& statement_x,
                              const A2MtAwcProof& proof) {
-  core::transcript::Transcript transcript;
-  AppendCommonMtaTranscriptFields(&transcript, kA2MtAwcProofId, ctx);
+  core::transcript::Transcript transcript(ctx.transcript_hash);
+  AppendCommonMtaTranscriptFields(&transcript, kA2MtAwcProofName, ctx);
   const Bytes n_bytes = core::encoding::EncodeMpInt(n);
   const Bytes gamma_bytes = core::encoding::EncodeMpInt(gamma);
   const Bytes n_tilde_bytes = core::encoding::EncodeMpInt(aux.n_tilde);
@@ -173,15 +161,15 @@ Scalar BuildA2MtAwcChallenge(const MtaProofContext& ctx, const BigInt& n,
       core::transcript::TranscriptFieldRef{.label = "v", .data = v_bytes},
       core::transcript::TranscriptFieldRef{.label = "w", .data = w_bytes},
   });
-  return transcript.challenge_scalar_mod_q();
+  return transcript.challenge_scalar(ctx.group);
 }
 
 Scalar BuildA3MtAChallenge(const MtaProofContext& ctx, const BigInt& n,
                            const BigInt& gamma, const AuxRsaParams& aux,
                            const BigInt& c1, const BigInt& c2,
                            const A3MtAProof& proof) {
-  core::transcript::Transcript transcript;
-  AppendCommonMtaTranscriptFields(&transcript, kA3MtAProofId, ctx);
+  core::transcript::Transcript transcript(ctx.transcript_hash);
+  AppendCommonMtaTranscriptFields(&transcript, kA3MtAProofName, ctx);
   const Bytes n_bytes = core::encoding::EncodeMpInt(n);
   const Bytes gamma_bytes = core::encoding::EncodeMpInt(gamma);
   const Bytes n_tilde_bytes = core::encoding::EncodeMpInt(aux.n_tilde);
@@ -210,7 +198,7 @@ Scalar BuildA3MtAChallenge(const MtaProofContext& ctx, const BigInt& n,
       core::transcript::TranscriptFieldRef{.label = "v", .data = v_bytes},
       core::transcript::TranscriptFieldRef{.label = "w", .data = w_bytes},
   });
-  return transcript.challenge_scalar_mod_q();
+  return transcript.challenge_scalar(ctx.group);
 }
 
 }  // namespace
@@ -218,12 +206,20 @@ Scalar BuildA3MtAChallenge(const MtaProofContext& ctx, const BigInt& n,
 MtaProofContext BuildProofContext(const Bytes& session_id,
                                   PartyIndex initiator_id,
                                   PartyIndex responder_id,
-                                  const Bytes& instance_id) {
+                                  const Bytes& instance_id,
+                                  const ThresholdSuite& suite,
+                                  std::shared_ptr<const GroupContext> group) {
+  if (group == nullptr) {
+    group = GroupContext::Create(suite.curve);
+  }
   return MtaProofContext{
       .session_id = session_id,
       .initiator_id = initiator_id,
       .responder_id = responder_id,
       .instance_id = instance_id,
+      .transcript_hash = suite.transcript_hash,
+      .group = std::move(group),
+      .proof_domain_prefix = suite.proof_domain_prefix,
   };
 }
 
@@ -241,16 +237,8 @@ BigInt SampleZnStar(const BigInt& modulus_n) {
   return bigint::RandomZnStar(modulus_n);
 }
 
-const BigInt& QPow5() {
-  static const BigInt q_pow_5 = []() {
-    BigInt out(1);
-    const BigInt& q = Scalar::ModulusQMpInt();
-    for (size_t i = 0; i < 5; ++i) {
-      out *= q;
-    }
-    return out;
-  }();
-  return q_pow_5;
+BigInt QPow5(const std::shared_ptr<const GroupContext>& group) {
+  return QPow(group->order(), 5);
 }
 
 BigInt MulMod(const BigInt& lhs, const BigInt& rhs, const BigInt& modulus) {
@@ -272,11 +260,11 @@ A1RangeProof ProveA1Range(const MtaProofContext& ctx, const BigInt& n,
   const BigInt n_tilde = verifier_aux.n_tilde;
   const BigInt h1 = verifier_aux.h1;
   const BigInt h2 = verifier_aux.h2;
-  const BigInt q_mul_n_tilde = Scalar::ModulusQMpInt() * n_tilde;
-  const BigInt q3_mul_n_tilde = QPow3() * n_tilde;
+  const BigInt q_mul_n_tilde = ctx.group->order() * n_tilde;
+  const BigInt q3_mul_n_tilde = QPow3(ctx) * n_tilde;
 
   while (true) {
-    const BigInt alpha = RandomBelow(QPow3());
+    const BigInt alpha = RandomBelow(QPow3(ctx));
     const BigInt beta = SampleZnStar(n);
     const BigInt gamma_rand = RandomBelow(q3_mul_n_tilde);
     const BigInt rho = RandomBelow(q_mul_n_tilde);
@@ -293,7 +281,7 @@ A1RangeProof ProveA1Range(const MtaProofContext& ctx, const BigInt& n,
     const BigInt s = MulMod(PowMod(witness_r, e, n), beta, n);
     const BigInt s1 = (e * witness_m) + alpha;
     const BigInt s2 = (e * rho) + gamma_rand;
-    if (s1 > QPow3()) {
+    if (s1 > QPow3(ctx)) {
       continue;
     }
 
@@ -322,7 +310,7 @@ bool VerifyA1Range(const MtaProofContext& ctx, const BigInt& n,
       !IsZnStarElement(proof.s, n)) {
     return false;
   }
-  if (proof.s1 < 0 || proof.s1 > QPow3() || proof.s2 < 0) {
+  if (proof.s1 < 0 || proof.s1 > QPow3(ctx) || proof.s2 < 0) {
     return false;
   }
 
@@ -359,12 +347,12 @@ A2MtAwcProof ProveA2MtAwc(const MtaProofContext& ctx, const BigInt& n,
   const BigInt n_tilde = verifier_aux.n_tilde;
   const BigInt h1 = verifier_aux.h1;
   const BigInt h2 = verifier_aux.h2;
-  const BigInt q_mul_n_tilde = Scalar::ModulusQMpInt() * n_tilde;
-  const BigInt q3_mul_n_tilde = QPow3() * n_tilde;
+  const BigInt q_mul_n_tilde = ctx.group->order() * n_tilde;
+  const BigInt q3_mul_n_tilde = QPow3(ctx) * n_tilde;
 
   while (true) {
-    const BigInt alpha = RandomBelow(QPow3());
-    const Scalar alpha_scalar(alpha);
+    const BigInt alpha = RandomBelow(QPow3(ctx));
+    const Scalar alpha_scalar(alpha, ctx.group);
     if (alpha_scalar.value() == 0) {
       continue;
     }
@@ -373,7 +361,7 @@ A2MtAwcProof ProveA2MtAwc(const MtaProofContext& ctx, const BigInt& n,
     const BigInt rho2 = RandomBelow(q3_mul_n_tilde);
     const BigInt sigma = RandomBelow(q_mul_n_tilde);
     const BigInt beta = SampleZnStar(n);
-    const BigInt gamma_rand = RandomBelow(QPow7());
+    const BigInt gamma_rand = RandomBelow(QPow7(ctx));
     const BigInt tau = RandomBelow(q3_mul_n_tilde);
 
     const ECPoint u = ECPoint::GeneratorMultiply(alpha_scalar);
@@ -406,7 +394,7 @@ A2MtAwcProof ProveA2MtAwc(const MtaProofContext& ctx, const BigInt& n,
     const BigInt s2 = (e * rho) + rho2;
     const BigInt t1 = (e * witness_y) + gamma_rand;
     const BigInt t2 = (e * sigma) + tau;
-    if (s1 > QPow3() || t1 > QPow7()) {
+    if (s1 > QPow3(ctx) || t1 > QPow7(ctx)) {
       continue;
     }
     proof.s = s;
@@ -434,8 +422,8 @@ bool VerifyA2MtAwc(const MtaProofContext& ctx, const BigInt& n,
       !IsZnStarElement(proof.s, n)) {
     return false;
   }
-  if (proof.s1 < 0 || proof.s1 > QPow3() || proof.t1 < 0 ||
-      proof.t1 > QPow7() || proof.s2 < 0 || proof.t2 < 0) {
+  if (proof.s1 < 0 || proof.s1 > QPow3(ctx) || proof.t1 < 0 ||
+      proof.t1 > QPow7(ctx) || proof.s2 < 0 || proof.t2 < 0) {
     return false;
   }
 
@@ -443,7 +431,7 @@ bool VerifyA2MtAwc(const MtaProofContext& ctx, const BigInt& n,
                                                 c2, statement_x, proof);
 
   try {
-    const Scalar s1_mod_q(proof.s1);
+    const Scalar s1_mod_q(proof.s1, ctx.group);
     if (s1_mod_q.value() == 0) {
       return false;
     }
@@ -491,16 +479,16 @@ A3MtAProof ProveA3MtA(const MtaProofContext& ctx, const BigInt& n,
   const BigInt n_tilde = verifier_aux.n_tilde;
   const BigInt h1 = verifier_aux.h1;
   const BigInt h2 = verifier_aux.h2;
-  const BigInt q_mul_n_tilde = Scalar::ModulusQMpInt() * n_tilde;
-  const BigInt q3_mul_n_tilde = QPow3() * n_tilde;
+  const BigInt q_mul_n_tilde = ctx.group->order() * n_tilde;
+  const BigInt q3_mul_n_tilde = QPow3(ctx) * n_tilde;
 
   while (true) {
-    const BigInt alpha = RandomBelow(QPow3());
+    const BigInt alpha = RandomBelow(QPow3(ctx));
     const BigInt rho = RandomBelow(q_mul_n_tilde);
     const BigInt rho2 = RandomBelow(q3_mul_n_tilde);
     const BigInt sigma = RandomBelow(q_mul_n_tilde);
     const BigInt beta = SampleZnStar(n);
-    const BigInt gamma_rand = RandomBelow(QPow7());
+    const BigInt gamma_rand = RandomBelow(QPow7(ctx));
     const BigInt tau = RandomBelow(q3_mul_n_tilde);
 
     const BigInt z = MulMod(PowMod(h1, witness_x, n_tilde),
@@ -530,7 +518,7 @@ A3MtAProof ProveA3MtA(const MtaProofContext& ctx, const BigInt& n,
     const BigInt s2 = (e * rho) + rho2;
     const BigInt t1 = (e * witness_y) + gamma_rand;
     const BigInt t2 = (e * sigma) + tau;
-    if (s1 > QPow3() || t1 > QPow7()) {
+    if (s1 > QPow3(ctx) || t1 > QPow7(ctx)) {
       continue;
     }
     proof.s = s;
@@ -557,8 +545,8 @@ bool VerifyA3MtA(const MtaProofContext& ctx, const BigInt& n,
       !IsZnStarElement(proof.s, n)) {
     return false;
   }
-  if (proof.s1 < 0 || proof.s1 > QPow3() || proof.t1 < 0 ||
-      proof.t1 > QPow7() || proof.s2 < 0 || proof.t2 < 0) {
+  if (proof.s1 < 0 || proof.s1 > QPow3(ctx) || proof.t1 < 0 ||
+      proof.t1 > QPow7(ctx) || proof.s2 < 0 || proof.t2 < 0) {
     return false;
   }
 

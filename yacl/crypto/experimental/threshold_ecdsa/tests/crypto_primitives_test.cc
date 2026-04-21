@@ -267,7 +267,10 @@ void TestStage3CoreCryptoCompatibility() {
 
 void TestStage4MtaAndRelationHelpers() {
   tecdsa::core::mta::PairwiseProductSession session(
-      {.session_id = Bytes{0x70, 0x34}, .self_id = 1});
+      {.session_id = Bytes{0x70, 0x34},
+       .self_id = 1,
+       .suite = DefaultEcdsaSuite(),
+       .group = nullptr});
   const Bytes instance_id = session.AllocateInstanceId();
   Expect(instance_id.size() == tecdsa::core::mta::kMtaInstanceIdLen,
          "PairwiseProductSession must allocate 16-byte instance ids");
@@ -301,7 +304,9 @@ void TestStage4MtaAndRelationHelpers() {
   const auto ctx = tecdsa::core::mta::BuildProofContext(Bytes{0x44, 0x04},
                                                         /*initiator_id=*/1,
                                                         /*responder_id=*/2,
-                                                        instance_id);
+                                                        instance_id,
+                                                        DefaultEcdsaSuite(),
+                                                        session.config().group);
   const auto a1_proof = tecdsa::core::mta::ProveA1Range(
       ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
       witness, encrypted.randomness);
@@ -361,6 +366,33 @@ void TestStage4MtaAndRelationHelpers() {
              ECPoint::GeneratorMultiply(Scalar::FromUint64(8)), v_statement,
              relation_proof),
          "ecdsa relation proof must bind the R statement");
+}
+
+void TestStage13MtaContextUsesExplicitSuite() {
+  const auto& sm2_suite = tecdsa::core::DefaultSm2Suite();
+  tecdsa::core::mta::PairwiseProductSession sm2_session(
+      {.session_id = Bytes{0x73, 0x31},
+       .self_id = 1,
+       .suite = sm2_suite,
+       .group = tecdsa::core::GroupContext::Create(sm2_suite.curve)});
+  Expect(sm2_session.config().group->curve_id() == CurveId::kSm2P256V1,
+         "PairwiseProductSession must keep the caller supplied SM2 group");
+
+  const auto ctx = tecdsa::core::mta::BuildProofContext(
+      Bytes{0x73, 0x13}, /*initiator_id=*/1, /*responder_id=*/2,
+      Bytes{0x00, 0x01, 0x02, 0x03}, sm2_suite, sm2_session.config().group);
+  Expect(ctx.transcript_hash == tecdsa::HashId::kSm3,
+         "MtaProofContext must inherit the suite transcript hash");
+  Expect(ctx.group->curve_id() == CurveId::kSm2P256V1,
+         "MtaProofContext must inherit the caller supplied group");
+  Expect(ctx.proof_domain_prefix == sm2_suite.proof_domain_prefix,
+         "MtaProofContext must inherit the suite proof domain prefix");
+  BigInt expected_q_pow_5(1);
+  for (size_t i = 0; i < 5; ++i) {
+    expected_q_pow_5 *= ctx.group->order();
+  }
+  Expect(tecdsa::core::mta::QPow5(ctx.group) == expected_q_pow_5,
+         "Mta QPow5 must derive from the explicit group modulus");
 }
 
 void TestStage12ExplicitTranscriptAndCommitmentContext() {
@@ -670,6 +702,7 @@ int main() {
     TestStage3CoreCryptoCompatibility();
     TestStage4MtaAndRelationHelpers();
     TestStage12ExplicitTranscriptAndCommitmentContext();
+    TestStage13MtaContextUsesExplicitSuite();
     TestMpIntRoundTrip();
     TestScalarEncodingAndReduction();
     TestPointEncoding();

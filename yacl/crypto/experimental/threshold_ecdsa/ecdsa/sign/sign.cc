@@ -135,7 +135,10 @@ SignParty::SignParty(SignConfig cfg)
     : cfg_(std::move(cfg)),
       message_scalar_(Scalar::FromBigEndianModQ(cfg_.msg32)),
       phase2_session_(
-          {.session_id = cfg_.session_id, .self_id = cfg_.self_id}) {
+          {.session_id = cfg_.session_id,
+           .self_id = cfg_.self_id,
+           .suite = core::DefaultEcdsaSuite(),
+           .group = nullptr}) {
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "ecdsa::sign::SignParty");
   peers_ = participant_set.peers;

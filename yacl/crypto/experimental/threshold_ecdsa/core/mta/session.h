@@ -22,6 +22,7 @@
 #include <unordered_set>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
@@ -46,7 +47,8 @@ class PairwiseProductSession {
   struct Config {
     Bytes session_id;
     PartyIndex self_id = 0;
-    std::shared_ptr<const GroupContext> group = DefaultGroupContext();
+    ThresholdSuite suite = DefaultEcdsaSuite();
+    std::shared_ptr<const GroupContext> group;
   };
 
   struct CreateRequestArgs {

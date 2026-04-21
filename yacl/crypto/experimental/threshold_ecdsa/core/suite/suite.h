@@ -48,6 +48,7 @@ struct ThresholdSuite {
 };
 
 const ThresholdSuite& DefaultEcdsaSuite();
+const ThresholdSuite& DefaultSm2Suite();
 
 Bytes Hash(HashId hash_id, std::span<const uint8_t> data);
 
