@@ -14,144 +14,41 @@
 
 #pragma once
 
-#include <cstdint>
-#include <memory>
-#include <optional>
 #include <unordered_map>
-#include <vector>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/types.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/messages.h"
 
 namespace tecdsa::proto {
 
 template <typename T>
 using PeerMap = std::unordered_map<PartyIndex, T>;
 
-struct SchnorrProof {
-  ECPoint a;
-  Scalar z;
-};
-
+using SchnorrProof = tecdsa::core::proof::SchnorrProof;
 using VRelationProof = tecdsa::ecdsa::sign::VRelationProof;
 using A1RangeProof = tecdsa::core::mta::A1RangeProof;
 using A2MtAwcProof = tecdsa::core::mta::A2MtAwcProof;
 using A3MtAProof = tecdsa::core::mta::A3MtAProof;
-
-enum class MtaType : uint8_t {
-  kTimesGamma = 1,
-  kTimesW = 2,
-};
-
-struct KeygenRound1Msg {
-  Bytes commitment;
-  PaillierPublicKey paillier_public;
-  AuxRsaParams aux_rsa_params;
-  AuxRsaParamProof aux_param_proof;
-};
-
-struct KeygenRound2Broadcast {
-  ECPoint y_i;
-  Bytes randomness;
-  std::vector<ECPoint> commitments;
-};
-
-struct KeygenRound2Out {
-  KeygenRound2Broadcast broadcast;
-  PeerMap<Scalar> shares_for_peers;
-};
-
-struct KeygenRound3Msg {
-  ECPoint X_i;
-  SchnorrProof proof;
-  SquareFreeProof square_free_proof;
-};
-
-struct LocalKeyShare {
-  Scalar x_i;
-  ECPoint X_i;
-  std::shared_ptr<PaillierProvider> paillier;
-};
-
-struct PublicKeygenData {
-  ECPoint y;
-  PeerMap<ECPoint> all_X_i;
-  PeerMap<PaillierPublicKey> all_paillier_public;
-  PeerMap<AuxRsaParams> all_aux_rsa_params;
-  PeerMap<SquareFreeProof> all_square_free_proofs;
-  PeerMap<AuxRsaParamProof> all_aux_param_proofs;
-};
-
-struct KeygenOutput {
-  LocalKeyShare local_key_share;
-  PublicKeygenData public_keygen_data;
-};
-
-struct SignRound1Msg {
-  Bytes commitment;
-};
-
-struct SignRound2Request {
-  PartyIndex from = 0;
-  PartyIndex to = 0;
-  MtaType type = MtaType::kTimesGamma;
-  Bytes instance_id;
-  BigInt c1 = BigInt(0);
-  A1RangeProof a1_proof;
-};
-
-struct SignRound2Response {
-  PartyIndex from = 0;
-  PartyIndex to = 0;
-  MtaType type = MtaType::kTimesGamma;
-  Bytes instance_id;
-  BigInt c2 = BigInt(0);
-  std::optional<A2MtAwcProof> a2_proof;
-  std::optional<A3MtAProof> a3_proof;
-};
-
-struct SignRound3Msg {
-  Scalar delta_i;
-};
-
-struct SignRound4Msg {
-  ECPoint gamma_i;
-  Bytes randomness;
-  SchnorrProof gamma_proof;
-};
-
-struct SignRound5AMsg {
-  Bytes commitment;
-};
-
-struct SignRound5BMsg {
-  ECPoint V_i;
-  ECPoint A_i;
-  Bytes randomness;
-  SchnorrProof a_schnorr_proof;
-  VRelationProof v_relation_proof;
-};
-
-struct SignRound5CMsg {
-  Bytes commitment;
-};
-
-struct SignRound5DMsg {
-  ECPoint U_i;
-  ECPoint T_i;
-  Bytes randomness;
-};
-
-struct Signature {
-  Scalar r;
-  Scalar s;
-  ECPoint R;
-};
+using KeygenRound1Msg = tecdsa::ecdsa::keygen::KeygenRound1Msg;
+using KeygenRound2Broadcast = tecdsa::ecdsa::keygen::KeygenRound2Broadcast;
+using KeygenRound2Out = tecdsa::ecdsa::keygen::KeygenRound2Out;
+using KeygenRound3Msg = tecdsa::ecdsa::keygen::KeygenRound3Msg;
+using LocalKeyShare = tecdsa::ecdsa::keygen::LocalKeyShare;
+using PublicKeygenData = tecdsa::ecdsa::keygen::PublicKeygenData;
+using KeygenOutput = tecdsa::ecdsa::keygen::KeygenOutput;
+using MtaType = tecdsa::ecdsa::sign::MtaType;
+using SignRound1Msg = tecdsa::ecdsa::sign::SignRound1Msg;
+using SignRound2Request = tecdsa::ecdsa::sign::SignRound2Request;
+using SignRound2Response = tecdsa::ecdsa::sign::SignRound2Response;
+using SignRound3Msg = tecdsa::ecdsa::sign::SignRound3Msg;
+using SignRound4Msg = tecdsa::ecdsa::sign::SignRound4Msg;
+using SignRound5AMsg = tecdsa::ecdsa::sign::SignRound5AMsg;
+using SignRound5BMsg = tecdsa::ecdsa::sign::SignRound5BMsg;
+using SignRound5CMsg = tecdsa::ecdsa::sign::SignRound5CMsg;
+using SignRound5DMsg = tecdsa::ecdsa::sign::SignRound5DMsg;
+using Signature = tecdsa::ecdsa::sign::Signature;
 
 }  // namespace tecdsa::proto

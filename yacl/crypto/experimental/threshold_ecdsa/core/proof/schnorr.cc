@@ -43,10 +43,9 @@ Scalar BuildSchnorrChallenge(const Bytes& session_id, PartyIndex party_id,
 
 }  // namespace
 
-proto::SchnorrProof BuildSchnorrProof(const Bytes& session_id,
-                                      PartyIndex prover_id,
-                                      const ECPoint& statement,
-                                      const Scalar& witness) {
+SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
+                               const ECPoint& statement,
+                               const Scalar& witness) {
   if (witness.value() == 0) {
     TECDSA_THROW_ARGUMENT("schnorr witness must be non-zero");
   }
@@ -59,13 +58,12 @@ proto::SchnorrProof BuildSchnorrProof(const Bytes& session_id,
     if (z.value() == 0) {
       continue;
     }
-    return proto::SchnorrProof{.a = a, .z = z};
+    return SchnorrProof{a, z};
   }
 }
 
 bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
-                        const ECPoint& statement,
-                        const proto::SchnorrProof& proof) {
+                        const ECPoint& statement, const SchnorrProof& proof) {
   if (proof.z.value() == 0) {
     return false;
   }

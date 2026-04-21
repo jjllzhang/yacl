@@ -17,31 +17,16 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/messages.h"
 
 namespace tecdsa::ecdsa::sign {
 
-using LocalKeyShare = tecdsa::proto::LocalKeyShare;
-using MtaType = tecdsa::proto::MtaType;
-using PublicKeygenData = tecdsa::proto::PublicKeygenData;
-using SignRound1Msg = tecdsa::proto::SignRound1Msg;
-using SignRound2Request = tecdsa::proto::SignRound2Request;
-using SignRound2Response = tecdsa::proto::SignRound2Response;
-using SignRound3Msg = tecdsa::proto::SignRound3Msg;
-using SignRound4Msg = tecdsa::proto::SignRound4Msg;
-using SignRound5AMsg = tecdsa::proto::SignRound5AMsg;
-using SignRound5BMsg = tecdsa::proto::SignRound5BMsg;
-using SignRound5CMsg = tecdsa::proto::SignRound5CMsg;
-using SignRound5DMsg = tecdsa::proto::SignRound5DMsg;
-using Signature = tecdsa::proto::Signature;
-
-template <typename T>
-using PeerMap = tecdsa::proto::PeerMap<T>;
+using LocalKeyShare = tecdsa::ecdsa::keygen::LocalKeyShare;
+using PublicKeygenData = tecdsa::ecdsa::keygen::PublicKeygenData;
 
 struct SignConfig {
   Bytes session_id;

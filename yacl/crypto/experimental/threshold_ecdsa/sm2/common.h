@@ -24,6 +24,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
@@ -31,7 +32,6 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/hash.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/random.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
 
 namespace tecdsa::sm2::internal {
 
@@ -198,24 +198,24 @@ inline Scalar BuildSchnorrChallenge(const Bytes& session_id,
                                    Sm2Group());
 }
 
-inline proto::SchnorrProof BuildSchnorrProof(const Bytes& session_id,
-                                             PartyIndex prover_id,
-                                             const ECPoint& statement,
-                                             const Scalar& witness) {
+inline core::proof::SchnorrProof BuildSchnorrProof(const Bytes& session_id,
+                                                   PartyIndex prover_id,
+                                                   const ECPoint& statement,
+                                                   const Scalar& witness) {
   while (true) {
     const Scalar r = RandomNonZeroSm2Scalar();
     const ECPoint a = ECPoint::GeneratorMultiply(r);
     const Scalar e = BuildSchnorrChallenge(session_id, prover_id, statement, a);
     const Scalar z = r + (e * witness);
     if (z.value() != 0) {
-      return proto::SchnorrProof{.a = a, .z = z};
+      return core::proof::SchnorrProof{a, z};
     }
   }
 }
 
 inline bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,
-                               const proto::SchnorrProof& proof) {
+                               const core::proof::SchnorrProof& proof) {
   if (proof.z.value() == 0) {
     return false;
   }

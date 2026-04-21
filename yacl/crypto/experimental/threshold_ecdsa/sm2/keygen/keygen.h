@@ -22,11 +22,11 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/zid/zid.h"
 
 namespace tecdsa::sm2::keygen {
@@ -68,7 +68,7 @@ using KeygenRound3Response = tecdsa::core::mta::PairwiseProductResponse;
 struct KeygenRound4Msg {
   Scalar sigma_i;
   ECPoint Gamma_i;
-  tecdsa::proto::SchnorrProof gamma_proof;
+  tecdsa::core::proof::SchnorrProof gamma_proof;
   SquareFreeProof square_free_proof;
 };
 

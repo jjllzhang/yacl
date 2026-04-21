@@ -35,8 +35,11 @@ TSIG_CORE_HDRS = glob([
 ], exclude = [
     "crypto/ecdsa_verify.h",
 ]) + [
-    # Stage6 still leaves a few core-facing headers typed in terms of the
-    # compatibility message structs, so keep them visible from tsig_core.
+    # Stage10 routes protocol/messages.h through canonical scheme-owned message
+    # headers, so keep those compat-facing definitions visible from tsig_core
+    # until stage11 moves protocol/* fully out of the public core surface.
+    "ecdsa/keygen/messages.h",
+    "ecdsa/sign/messages.h",
     "ecdsa/sign/relation_proofs.h",
     "protocol/messages.h",
     "protocol/proto_common.h",

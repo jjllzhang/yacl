@@ -15,17 +15,25 @@
 #pragma once
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 
 namespace tecdsa::core::proof {
 
-proto::SchnorrProof BuildSchnorrProof(const Bytes& session_id,
-                                      PartyIndex prover_id,
-                                      const ECPoint& statement,
-                                      const Scalar& witness);
+SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
+                               const ECPoint& statement,
+                               const Scalar& witness);
 
 bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
-                        const ECPoint& statement,
-                        const proto::SchnorrProof& proof);
+                        const ECPoint& statement, const SchnorrProof& proof);
+
+template <typename Proof>
+  requires(SchnorrProofLike<Proof> &&
+           !std::same_as<std::remove_cvref_t<Proof>, SchnorrProof>)
+bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
+                        const ECPoint& statement, const Proof& proof) {
+  return VerifySchnorrProof(session_id, prover_id, statement,
+                            SchnorrProof{proof.a, proof.z});
+}
 
 }  // namespace tecdsa::core::proof

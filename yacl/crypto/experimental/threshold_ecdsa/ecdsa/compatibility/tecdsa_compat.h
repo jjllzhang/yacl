@@ -24,6 +24,6 @@ using KeygenConfig = tecdsa::ecdsa::keygen::KeygenConfig;
 using KeygenParty = tecdsa::ecdsa::keygen::KeygenParty;
 using SignConfig = tecdsa::ecdsa::sign::SignConfig;
 using SignParty = tecdsa::ecdsa::sign::SignParty;
-using Signature = tecdsa::proto::Signature;
+using Signature = tecdsa::ecdsa::sign::Signature;
 
 }  // namespace tecdsa::ecdsa::compatibility

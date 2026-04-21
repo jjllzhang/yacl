@@ -18,8 +18,7 @@
 #include <optional>
 #include <vector>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/messages.h"
 
 namespace tecdsa::ecdsa::keygen {
 
@@ -31,17 +30,6 @@ struct KeygenConfig {
   uint32_t paillier_modulus_bits = 2048;
   uint32_t aux_rsa_modulus_bits = 2048;
 };
-
-using KeygenRound1Msg = tecdsa::proto::KeygenRound1Msg;
-using KeygenRound2Broadcast = tecdsa::proto::KeygenRound2Broadcast;
-using KeygenRound2Out = tecdsa::proto::KeygenRound2Out;
-using KeygenRound3Msg = tecdsa::proto::KeygenRound3Msg;
-using LocalKeyShare = tecdsa::proto::LocalKeyShare;
-using PublicKeygenData = tecdsa::proto::PublicKeygenData;
-using KeygenOutput = tecdsa::proto::KeygenOutput;
-
-template <typename T>
-using PeerMap = tecdsa::proto::PeerMap<T>;
 
 class KeygenParty {
  public:
