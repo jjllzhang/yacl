@@ -14,6 +14,7 @@
 
 #include <functional>
 #include <iostream>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <unordered_map>
@@ -211,7 +212,8 @@ void TestStage3CoreCryptoCompatibility() {
   Expect(tecdsa::core::encoding::DecodeMpInt(encoded_via_core) == value,
          "core DecodeMpInt must round-trip encoded MPInts");
 
-  tecdsa::core::transcript::Transcript core_transcript;
+  tecdsa::core::transcript::Transcript core_transcript(
+      DefaultEcdsaSuite().transcript_hash);
   core_transcript.append("a", Bytes{0x10, 0x11});
   const Bytes expected_bytes = {
       0x00, 0x00, 0x00, 0x01, 0x61, 0x00,
@@ -224,7 +226,7 @@ void TestStage3CoreCryptoCompatibility() {
   compat_transcript.append("a", Bytes{0x10, 0x11});
   Expect(core_transcript.bytes() == compat_transcript.bytes(),
          "compat transcript alias must match core transcript bytes");
-  Expect(core_transcript.challenge_scalar_mod_q() ==
+  Expect(core_transcript.challenge_scalar(DefaultGroupContext()) ==
              compat_transcript.challenge_scalar_mod_q(),
          "compat transcript alias must match core transcript challenge");
 
@@ -272,6 +274,17 @@ void TestStage3CoreCryptoCompatibility() {
 }
 
 void TestStage4MtaAndRelationHelpers() {
+  ExpectThrow(
+      [&]() {
+        tecdsa::core::mta::PairwiseProductSession implicit_suite_session(
+            {.session_id = Bytes{0x70, 0x00},
+             .self_id = 1,
+             .suite = std::nullopt,
+             .group = DefaultGroupContext()});
+        (void)implicit_suite_session;
+      },
+      "PairwiseProductSession must reject an implicit default suite");
+
   tecdsa::core::mta::PairwiseProductSession session(
       {.session_id = Bytes{0x70, 0x34},
        .self_id = 1,

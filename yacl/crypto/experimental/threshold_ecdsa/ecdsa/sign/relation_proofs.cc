@@ -44,7 +44,7 @@ Scalar BuildVRelationChallenge(const Bytes& session_id, PartyIndex party_id,
                                const ECPoint& r_statement,
                                const ECPoint& v_statement,
                                const ECPoint& alpha) {
-  core::transcript::Transcript transcript;
+  core::transcript::Transcript transcript(core::DefaultEcdsaSuite().transcript_hash);
   const Bytes r_bytes = core::encoding::EncodePoint(r_statement);
   const Bytes v_bytes = core::encoding::EncodePoint(v_statement);
   const Bytes alpha_bytes = core::encoding::EncodePoint(alpha);
@@ -57,7 +57,7 @@ Scalar BuildVRelationChallenge(const Bytes& session_id, PartyIndex party_id,
       core::transcript::TranscriptFieldRef{.label = "alpha",
                                            .data = alpha_bytes},
   });
-  return transcript.challenge_scalar_mod_q();
+  return transcript.challenge_scalar(r_statement.group());
 }
 
 ECPoint BuildRGeneratorLinearCombination(const ECPoint& r_base,

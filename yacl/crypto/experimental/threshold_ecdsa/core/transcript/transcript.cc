@@ -31,8 +31,6 @@ std::span<const uint8_t> AsByteSpan(std::string_view value) {
 
 }  // namespace
 
-Transcript::Transcript() : Transcript(DefaultEcdsaSuite().transcript_hash) {}
-
 Transcript::Transcript(HashId challenge_hash) : challenge_hash_(challenge_hash) {}
 
 void Transcript::append(std::string_view label, std::span<const uint8_t> data) {
@@ -88,10 +86,6 @@ Transcript::BigInt Transcript::challenge_bigint_mod(
 Scalar Transcript::challenge_scalar(
     const std::shared_ptr<const GroupContext>& group) const {
   return Scalar::FromBigEndianModQ(Hash(challenge_hash_, transcript_), group);
-}
-
-Scalar Transcript::challenge_scalar_mod_q() const {
-  return challenge_scalar(DefaultGroupContext());
 }
 
 const Bytes& Transcript::bytes() const { return transcript_; }

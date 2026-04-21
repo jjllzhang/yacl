@@ -34,7 +34,6 @@ class Transcript {
  public:
   using BigInt = Scalar::BigInt;
 
-  Transcript();
   explicit Transcript(HashId challenge_hash);
 
   void append(std::string_view label, std::span<const uint8_t> data);
@@ -46,7 +45,6 @@ class Transcript {
   BigInt challenge_bigint_mod(const BigInt& modulus) const;
   Scalar challenge_scalar(
       const std::shared_ptr<const GroupContext>& group) const;
-  Scalar challenge_scalar_mod_q() const;
 
   const Bytes& bytes() const;
 

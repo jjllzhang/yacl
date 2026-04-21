@@ -47,7 +47,7 @@ class PairwiseProductSession {
   struct Config {
     Bytes session_id;
     PartyIndex self_id = 0;
-    ThresholdSuite suite = DefaultEcdsaSuite();
+    std::optional<ThresholdSuite> suite;
     std::shared_ptr<const GroupContext> group;
   };
 

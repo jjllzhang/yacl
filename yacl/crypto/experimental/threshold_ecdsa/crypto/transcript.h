@@ -14,11 +14,24 @@
 
 #pragma once
 
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
 
 namespace tecdsa {
 
 using TranscriptFieldRef = core::transcript::TranscriptFieldRef;
-using Transcript = core::transcript::Transcript;
+
+class Transcript : public core::transcript::Transcript {
+ public:
+  using BigInt = core::transcript::Transcript::BigInt;
+  using core::transcript::Transcript::Transcript;
+
+  Transcript()
+      : core::transcript::Transcript(core::DefaultEcdsaSuite().transcript_hash) {}
+
+  core::Scalar challenge_scalar_mod_q() const {
+    return challenge_scalar(core::DefaultGroupContext());
+  }
+};
 
 }  // namespace tecdsa
