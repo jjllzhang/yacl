@@ -19,6 +19,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/byte_io.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
 
 namespace tecdsa::core::transcript {
 namespace {
@@ -75,8 +76,22 @@ void Transcript::append_fields(
   }
 }
 
+Transcript::BigInt Transcript::challenge_bigint_mod(
+    const BigInt& modulus) const {
+  if (modulus <= BigInt(0)) {
+    TECDSA_THROW_ARGUMENT("Transcript challenge modulus must be positive");
+  }
+  return bigint::NormalizeMod(bigint::FromBigEndian(Hash(challenge_hash_, transcript_)),
+                              modulus);
+}
+
+Scalar Transcript::challenge_scalar(
+    const std::shared_ptr<const GroupContext>& group) const {
+  return Scalar::FromBigEndianModQ(Hash(challenge_hash_, transcript_), group);
+}
+
 Scalar Transcript::challenge_scalar_mod_q() const {
-  return Scalar::FromBigEndianModQ(Hash(challenge_hash_, transcript_));
+  return challenge_scalar(DefaultGroupContext());
 }
 
 const Bytes& Transcript::bytes() const { return transcript_; }

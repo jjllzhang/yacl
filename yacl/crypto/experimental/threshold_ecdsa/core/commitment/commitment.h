@@ -18,6 +18,7 @@
 #include <string>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 
 namespace tecdsa::core::commitment {
 
@@ -26,6 +27,34 @@ struct CommitmentResult {
   Bytes randomness;
 };
 
+CommitmentResult CommitMessage(HashId hash_id, const std::string& domain,
+                               std::span<const uint8_t> message,
+                               size_t randomness_len = 32);
+
+CommitmentResult CommitMessage(const ThresholdSuite& suite,
+                               const std::string& domain,
+                               std::span<const uint8_t> message,
+                               size_t randomness_len = 32);
+
+Bytes ComputeCommitment(HashId hash_id, const std::string& domain,
+                        std::span<const uint8_t> message,
+                        std::span<const uint8_t> randomness);
+
+Bytes ComputeCommitment(const ThresholdSuite& suite, const std::string& domain,
+                        std::span<const uint8_t> message,
+                        std::span<const uint8_t> randomness);
+
+bool VerifyCommitment(HashId hash_id, const std::string& domain,
+                      std::span<const uint8_t> message,
+                      std::span<const uint8_t> randomness,
+                      std::span<const uint8_t> commitment);
+
+bool VerifyCommitment(const ThresholdSuite& suite, const std::string& domain,
+                      std::span<const uint8_t> message,
+                      std::span<const uint8_t> randomness,
+                      std::span<const uint8_t> commitment);
+
+// Legacy compatibility overloads that use DefaultEcdsaSuite().commitment_hash.
 CommitmentResult CommitMessage(const std::string& domain,
                                std::span<const uint8_t> message,
                                size_t randomness_len = 32);

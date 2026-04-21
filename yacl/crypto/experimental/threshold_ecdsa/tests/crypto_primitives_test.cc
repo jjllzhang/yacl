@@ -363,6 +363,47 @@ void TestStage4MtaAndRelationHelpers() {
          "ecdsa relation proof must bind the R statement");
 }
 
+void TestStage12ExplicitTranscriptAndCommitmentContext() {
+  tecdsa::core::transcript::Transcript transcript(tecdsa::HashId::kSha512);
+  transcript.append("alpha", Bytes{0x01, 0x02, 0x03});
+  transcript.append("beta", Bytes{0x04, 0x05});
+
+  const BigInt expected_mod_97 = tecdsa::bigint::NormalizeMod(
+      tecdsa::bigint::FromBigEndian(
+          tecdsa::Hash(tecdsa::HashId::kSha512, transcript.bytes())),
+      BigInt(97));
+  Expect(transcript.challenge_bigint_mod(BigInt(97)) == expected_mod_97,
+         "Transcript::challenge_bigint_mod must reduce the digest under the supplied modulus");
+
+  const auto sm2_group =
+      tecdsa::core::GroupContext::Create(CurveId::kSm2P256V1);
+  const Scalar expected_sm2_challenge = Scalar::FromBigEndianModQ(
+      tecdsa::Hash(tecdsa::HashId::kSha512, transcript.bytes()), sm2_group);
+  Expect(transcript.challenge_scalar(sm2_group) == expected_sm2_challenge,
+         "Transcript::challenge_scalar must use the caller supplied group");
+
+  tecdsa::core::ThresholdSuite sha512_commit_suite = DefaultEcdsaSuite();
+  sha512_commit_suite.commitment_hash = tecdsa::HashId::kSha512;
+
+  const Bytes message = {'s', '1', '2'};
+  const Bytes randomness = {0x21, 0x22, 0x23, 0x24};
+  const Bytes explicit_hash_commitment = tecdsa::core::commitment::ComputeCommitment(
+      tecdsa::HashId::kSha512, "stage12", message, randomness);
+  const Bytes explicit_suite_commitment = tecdsa::core::commitment::ComputeCommitment(
+      sha512_commit_suite, "stage12", message, randomness);
+  Expect(explicit_hash_commitment == explicit_suite_commitment,
+         "Commitment overloads for HashId and ThresholdSuite must agree");
+  Expect(tecdsa::core::commitment::VerifyCommitment(
+             sha512_commit_suite, "stage12", message, randomness,
+             explicit_hash_commitment),
+         "Commitment verification must accept the explicit suite overload");
+
+  const Bytes default_commitment =
+      tecdsa::core::commitment::ComputeCommitment("stage12", message, randomness);
+  Expect(default_commitment != explicit_hash_commitment,
+         "Explicit commitment hash selection must override the default compatibility path");
+}
+
 void TestMpIntRoundTrip() {
   BigInt huge(1);
   for (size_t i = 0; i < 1023; ++i) {
@@ -628,6 +669,7 @@ int main() {
     TestStage2SchnorrHelpers();
     TestStage3CoreCryptoCompatibility();
     TestStage4MtaAndRelationHelpers();
+    TestStage12ExplicitTranscriptAndCommitmentContext();
     TestMpIntRoundTrip();
     TestScalarEncodingAndReduction();
     TestPointEncoding();

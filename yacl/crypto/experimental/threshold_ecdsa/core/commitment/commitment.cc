@@ -52,29 +52,71 @@ Bytes BuildCommitPreimage(const std::string& domain,
 
 }  // namespace
 
-CommitmentResult CommitMessage(const std::string& domain,
+CommitmentResult CommitMessage(HashId hash_id, const std::string& domain,
                                std::span<const uint8_t> message,
                                size_t randomness_len) {
   CommitmentResult out;
   out.randomness = Csprng::RandomBytes(randomness_len);
-  out.commitment = ComputeCommitment(domain, message, out.randomness);
+  out.commitment =
+      ComputeCommitment(hash_id, domain, message, out.randomness);
   return out;
+}
+
+CommitmentResult CommitMessage(const ThresholdSuite& suite,
+                               const std::string& domain,
+                               std::span<const uint8_t> message,
+                               size_t randomness_len) {
+  return CommitMessage(suite.commitment_hash, domain, message, randomness_len);
+}
+
+CommitmentResult CommitMessage(const std::string& domain,
+                               std::span<const uint8_t> message,
+                               size_t randomness_len) {
+  return CommitMessage(DefaultEcdsaSuite(), domain, message, randomness_len);
+}
+
+Bytes ComputeCommitment(HashId hash_id, const std::string& domain,
+                        std::span<const uint8_t> message,
+                        std::span<const uint8_t> randomness) {
+  const Bytes preimage = BuildCommitPreimage(domain, message, randomness);
+  return Hash(hash_id, preimage);
+}
+
+Bytes ComputeCommitment(const ThresholdSuite& suite, const std::string& domain,
+                        std::span<const uint8_t> message,
+                        std::span<const uint8_t> randomness) {
+  return ComputeCommitment(suite.commitment_hash, domain, message, randomness);
 }
 
 Bytes ComputeCommitment(const std::string& domain,
                         std::span<const uint8_t> message,
                         std::span<const uint8_t> randomness) {
-  const Bytes preimage = BuildCommitPreimage(domain, message, randomness);
-  return Hash(DefaultEcdsaSuite().commitment_hash, preimage);
+  return ComputeCommitment(DefaultEcdsaSuite(), domain, message, randomness);
+}
+
+bool VerifyCommitment(HashId hash_id, const std::string& domain,
+                      std::span<const uint8_t> message,
+                      std::span<const uint8_t> randomness,
+                      std::span<const uint8_t> commitment) {
+  const Bytes expected = ComputeCommitment(hash_id, domain, message, randomness);
+  return std::equal(expected.begin(), expected.end(), commitment.begin(),
+                    commitment.end());
+}
+
+bool VerifyCommitment(const ThresholdSuite& suite, const std::string& domain,
+                      std::span<const uint8_t> message,
+                      std::span<const uint8_t> randomness,
+                      std::span<const uint8_t> commitment) {
+  return VerifyCommitment(suite.commitment_hash, domain, message, randomness,
+                          commitment);
 }
 
 bool VerifyCommitment(const std::string& domain,
                       std::span<const uint8_t> message,
                       std::span<const uint8_t> randomness,
                       std::span<const uint8_t> commitment) {
-  const Bytes expected = ComputeCommitment(domain, message, randomness);
-  return std::equal(expected.begin(), expected.end(), commitment.begin(),
-                    commitment.end());
+  return VerifyCommitment(DefaultEcdsaSuite(), domain, message, randomness,
+                          commitment);
 }
 
 }  // namespace tecdsa::core::commitment

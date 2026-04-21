@@ -32,6 +32,8 @@ struct TranscriptFieldRef {
 
 class Transcript {
  public:
+  using BigInt = Scalar::BigInt;
+
   Transcript();
   explicit Transcript(HashId challenge_hash);
 
@@ -41,6 +43,9 @@ class Transcript {
   void append_session_id(std::span<const uint8_t> session_id);
   void append_u32_be(std::string_view label, uint32_t value);
   void append_fields(std::initializer_list<TranscriptFieldRef> fields);
+  BigInt challenge_bigint_mod(const BigInt& modulus) const;
+  Scalar challenge_scalar(
+      const std::shared_ptr<const GroupContext>& group) const;
   Scalar challenge_scalar_mod_q() const;
 
   const Bytes& bytes() const;
