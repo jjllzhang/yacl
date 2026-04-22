@@ -20,11 +20,12 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_affine.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_range.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
 
 namespace tecdsa::ecdsa::sign {
@@ -47,7 +48,7 @@ struct SignRound2Request {
   MtaType type = MtaType::kTimesGamma;
   Bytes instance_id;
   BigInt c1 = BigInt(0);
-  core::mta::A1RangeProof a1_proof;
+  proofs::A1RangeProof a1_proof;
 };
 
 struct SignRound2Response {
@@ -56,8 +57,8 @@ struct SignRound2Response {
   MtaType type = MtaType::kTimesGamma;
   Bytes instance_id;
   BigInt c2 = BigInt(0);
-  std::optional<core::mta::A2MtAwcProof> a2_proof;
-  std::optional<core::mta::A3MtAProof> a3_proof;
+  std::optional<proofs::A2MtAwcProof> a2_proof;
+  std::optional<proofs::A3MtAProof> a3_proof;
 };
 
 struct SignRound3Msg {

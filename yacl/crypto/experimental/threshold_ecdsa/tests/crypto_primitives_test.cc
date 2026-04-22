@@ -48,6 +48,8 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/random.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/transcript.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_affine.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_range.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
 namespace {
 
@@ -320,7 +322,8 @@ void TestStage4MtaAndRelationHelpers() {
             {.session_id = Bytes{0x70, 0x00},
              .self_id = 1,
              .suite = std::nullopt,
-             .group = DefaultGroupContext()});
+             .group = DefaultGroupContext(),
+             .proof_backend = nullptr});
         (void)implicit_suite_session;
       },
       "PairwiseProductSession must reject an implicit default suite");
@@ -329,7 +332,8 @@ void TestStage4MtaAndRelationHelpers() {
       {.session_id = Bytes{0x70, 0x34},
        .self_id = 1,
        .suite = DefaultEcdsaSuite(),
-       .group = nullptr});
+       .group = nullptr,
+       .proof_backend = nullptr});
   const Bytes instance_id = session.AllocateInstanceId();
   Expect(instance_id.size() == tecdsa::core::mta::kMtaInstanceIdLen,
          "PairwiseProductSession must allocate 16-byte instance ids");
@@ -366,34 +370,79 @@ void TestStage4MtaAndRelationHelpers() {
                                                         instance_id,
                                                         DefaultEcdsaSuite(),
                                                         session.config().group);
-  const auto a1_proof = tecdsa::core::mta::ProveA1Range(
+  const auto a1_proof = tecdsa::ecdsa::proofs::ProveA1Range(
       ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
       witness, encrypted.randomness);
-  Expect(tecdsa::core::mta::VerifyA1Range(ctx, paillier.modulus_n_bigint(),
-                                          aux_params, encrypted.ciphertext,
-                                          a1_proof),
-         "core::mta A1 proof must verify under the original context");
+  Expect(tecdsa::ecdsa::proofs::VerifyA1Range(
+             ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+             a1_proof),
+         "ecdsa::proofs A1 proof must verify under the original context");
 
   auto wrong_session_ctx = ctx;
   wrong_session_ctx.session_id.push_back(0x01);
-  Expect(!tecdsa::core::mta::VerifyA1Range(
+  Expect(!tecdsa::ecdsa::proofs::VerifyA1Range(
              wrong_session_ctx, paillier.modulus_n_bigint(), aux_params,
              encrypted.ciphertext, a1_proof),
-         "core::mta A1 proof must bind the session id");
+         "ecdsa::proofs A1 proof must bind the session id");
 
   auto swapped_roles_ctx = ctx;
   std::swap(swapped_roles_ctx.initiator_id, swapped_roles_ctx.responder_id);
-  Expect(!tecdsa::core::mta::VerifyA1Range(
+  Expect(!tecdsa::ecdsa::proofs::VerifyA1Range(
              swapped_roles_ctx, paillier.modulus_n_bigint(), aux_params,
              encrypted.ciphertext, a1_proof),
-         "core::mta A1 proof must bind initiator and responder ids");
+         "ecdsa::proofs A1 proof must bind initiator and responder ids");
 
   auto wrong_instance_ctx = ctx;
   wrong_instance_ctx.instance_id.back() ^= 0x01;
-  Expect(!tecdsa::core::mta::VerifyA1Range(
+  Expect(!tecdsa::ecdsa::proofs::VerifyA1Range(
              wrong_instance_ctx, paillier.modulus_n_bigint(), aux_params,
              encrypted.ciphertext, a1_proof),
-         "core::mta A1 proof must bind the instance id");
+         "ecdsa::proofs A1 proof must bind the instance id");
+
+  auto out_of_range_a1 = a1_proof;
+  BigInt q_pow_3(1);
+  for (size_t i = 0; i < 3; ++i) {
+    q_pow_3 *= ctx.group->order();
+  }
+  out_of_range_a1.s1 = q_pow_3 + BigInt(1);
+  Expect(!tecdsa::ecdsa::proofs::VerifyA1Range(
+             ctx, paillier.modulus_n_bigint(), aux_params,
+             encrypted.ciphertext, out_of_range_a1),
+         "ecdsa::proofs A1 proof must reject out-of-range responses");
+
+  const BigInt witness_x = Scalar::FromUint64(13).mp_value();
+  const BigInt witness_y = Scalar::FromUint64(5).mp_value();
+  const BigInt responder_random =
+      tecdsa::bigint::RandomZnStar(paillier.modulus_n_bigint());
+  const BigInt c2_mta = paillier.AddCiphertextsBigInt(
+      paillier.MulPlaintextBigInt(encrypted.ciphertext, witness_x),
+      paillier.EncryptWithProvidedRandomBigInt(witness_y, responder_random));
+  const ECPoint statement_x = ECPoint::GeneratorMultiply(Scalar(witness_x));
+
+  const auto a2_proof = tecdsa::ecdsa::proofs::ProveA2MtAwc(
+      ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+      c2_mta, statement_x, witness_x, witness_y, responder_random);
+  Expect(tecdsa::ecdsa::proofs::VerifyA2MtAwc(
+             ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+             c2_mta, statement_x, a2_proof),
+         "ecdsa::proofs A2 proof must verify under the original relation");
+  Expect(!tecdsa::ecdsa::proofs::VerifyA2MtAwc(
+             ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+             c2_mta, ECPoint::GeneratorMultiply(Scalar::FromUint64(8)),
+             a2_proof),
+         "ecdsa::proofs A2 proof must reject a mismatched curve witness");
+
+  const auto a3_proof = tecdsa::ecdsa::proofs::ProveA3MtA(
+      ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+      c2_mta, witness_x, witness_y, responder_random);
+  Expect(tecdsa::ecdsa::proofs::VerifyA3MtA(
+             ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+             c2_mta, a3_proof),
+         "ecdsa::proofs A3 proof must verify under the original relation");
+  Expect(!tecdsa::ecdsa::proofs::VerifyA3MtA(
+             ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+             c2_mta + BigInt(1), a3_proof),
+         "ecdsa::proofs A3 proof must reject a mismatched Paillier relation");
 
   const Bytes relation_session = {0x51, 0x04};
   const Scalar relation_r = Scalar::FromUint64(7);
@@ -433,7 +482,8 @@ void TestStage13MtaContextUsesExplicitSuite() {
       {.session_id = Bytes{0x73, 0x31},
        .self_id = 1,
        .suite = sm2_suite,
-       .group = tecdsa::core::GroupContext::Create(sm2_suite.curve)});
+       .group = tecdsa::core::GroupContext::Create(sm2_suite.curve),
+       .proof_backend = nullptr});
   Expect(sm2_session.config().group->curve_id() == CurveId::kSm2P256V1,
          "PairwiseProductSession must keep the caller supplied SM2 group");
 

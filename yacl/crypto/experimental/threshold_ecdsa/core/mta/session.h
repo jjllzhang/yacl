@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <string>
 #include <memory>
@@ -35,6 +36,35 @@ std::string BytesToKey(const Bytes& bytes);
 std::string MakeResponderRequestKey(PartyIndex initiator, MtaType type);
 size_t ExpectedPairwiseProductMessageCount(size_t peer_count);
 
+struct ProofBackend {
+  std::function<A1RangeProof(const MtaProofContext&, const BigInt&,
+                             const AuxRsaParams&, const BigInt&,
+                             const BigInt&, const BigInt&)>
+      prove_a1_range;
+  std::function<bool(const MtaProofContext&, const BigInt&,
+                     const AuxRsaParams&, const BigInt&, const A1RangeProof&)>
+      verify_a1_range;
+  std::function<A2MtAwcProof(const MtaProofContext&, const BigInt&,
+                             const AuxRsaParams&, const BigInt&, const BigInt&,
+                             const ECPoint&, const BigInt&, const BigInt&,
+                             const BigInt&)>
+      prove_a2_mtawc;
+  std::function<bool(const MtaProofContext&, const BigInt&,
+                     const AuxRsaParams&, const BigInt&, const BigInt&,
+                     const ECPoint&, const A2MtAwcProof&)>
+      verify_a2_mtawc;
+  std::function<A3MtAProof(const MtaProofContext&, const BigInt&,
+                           const AuxRsaParams&, const BigInt&, const BigInt&,
+                           const BigInt&, const BigInt&, const BigInt&)>
+      prove_a3_mta;
+  std::function<bool(const MtaProofContext&, const BigInt&,
+                     const AuxRsaParams&, const BigInt&, const BigInt&,
+                     const A3MtAProof&)>
+      verify_a3_mta;
+};
+
+std::shared_ptr<const ProofBackend> BuildDefaultProofBackend();
+
 struct PairwiseProductInitiatorInstance {
   PartyIndex responder = 0;
   MtaType type = MtaType::kMta;
@@ -49,6 +79,7 @@ class PairwiseProductSession {
     PartyIndex self_id = 0;
     std::optional<ThresholdSuite> suite;
     std::shared_ptr<const GroupContext> group;
+    std::shared_ptr<const ProofBackend> proof_backend;
   };
 
   struct CreateRequestArgs {

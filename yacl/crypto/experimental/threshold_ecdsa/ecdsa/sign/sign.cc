@@ -25,7 +25,6 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
@@ -34,6 +33,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_affine.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/scalar_utils.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
@@ -43,6 +43,7 @@ namespace {
 
 namespace mta = tecdsa::core::mta;
 namespace paillier = tecdsa::core::paillier;
+namespace proofs = tecdsa::ecdsa::proofs;
 namespace relation = tecdsa::ecdsa::sign;
 namespace verify = tecdsa::ecdsa::verify;
 
@@ -139,7 +140,8 @@ SignParty::SignParty(SignConfig cfg)
           {.session_id = cfg_.session_id,
            .self_id = cfg_.self_id,
            .suite = core::DefaultEcdsaSuite(),
-           .group = nullptr}) {
+           .group = nullptr,
+           .proof_backend = proofs::BuildGg19ProofBackend()}) {
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "ecdsa::sign::SignParty");
   peers_ = participant_set.peers;

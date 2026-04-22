@@ -94,7 +94,8 @@ KeygenParty::KeygenParty(KeygenConfig cfg)
       sigma_session_({.session_id = cfg_.session_id,
                       .self_id = cfg_.self_id,
                       .suite = core::DefaultSm2Suite(),
-                      .group = internal::Sm2Group()}) {
+                      .group = internal::Sm2Group(),
+                      .proof_backend = nullptr}) {
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "sm2::keygen::KeygenParty");
   peers_ = participant_set.peers;

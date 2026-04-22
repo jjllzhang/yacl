@@ -68,7 +68,56 @@ void ValidatePublicWitnessPointPresenceOrThrow(
   }
 }
 
+std::shared_ptr<const ProofBackend> MakeDefaultProofBackend() {
+  auto backend = std::make_shared<ProofBackend>();
+  backend->prove_a1_range = [](const MtaProofContext& ctx, const BigInt& n,
+                               const AuxRsaParams& verifier_aux,
+                               const BigInt& c, const BigInt& witness_m,
+                               const BigInt& witness_r) {
+    return ProveA1Range(ctx, n, verifier_aux, c, witness_m, witness_r);
+  };
+  backend->verify_a1_range = [](const MtaProofContext& ctx, const BigInt& n,
+                                const AuxRsaParams& verifier_aux,
+                                const BigInt& c, const A1RangeProof& proof) {
+    return VerifyA1Range(ctx, n, verifier_aux, c, proof);
+  };
+  backend->prove_a2_mtawc =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const ECPoint& statement_x, const BigInt& witness_x,
+         const BigInt& witness_y, const BigInt& witness_r) {
+        return ProveA2MtAwc(ctx, n, verifier_aux, c1, c2, statement_x,
+                            witness_x, witness_y, witness_r);
+      };
+  backend->verify_a2_mtawc =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const ECPoint& statement_x, const A2MtAwcProof& proof) {
+        return VerifyA2MtAwc(ctx, n, verifier_aux, c1, c2, statement_x, proof);
+      };
+  backend->prove_a3_mta =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const BigInt& witness_x, const BigInt& witness_y,
+         const BigInt& witness_r) {
+        return ProveA3MtA(ctx, n, verifier_aux, c1, c2, witness_x, witness_y,
+                          witness_r);
+      };
+  backend->verify_a3_mta = [](const MtaProofContext& ctx, const BigInt& n,
+                              const AuxRsaParams& verifier_aux,
+                              const BigInt& c1, const BigInt& c2,
+                              const A3MtAProof& proof) {
+    return VerifyA3MtA(ctx, n, verifier_aux, c1, c2, proof);
+  };
+  return backend;
+}
+
 }  // namespace
+
+std::shared_ptr<const ProofBackend> BuildDefaultProofBackend() {
+  static const auto backend = MakeDefaultProofBackend();
+  return backend;
+}
 
 Bytes RandomMtaInstanceId() { return Csprng::RandomBytes(kMtaInstanceIdLen); }
 
@@ -97,6 +146,9 @@ PairwiseProductSession::PairwiseProductSession(Config cfg)
     TECDSA_THROW_ARGUMENT("PairwiseProductSession suite must be explicit");
   }
   cfg_.group = ResolveGroup(*cfg_.suite, std::move(cfg_.group));
+  if (cfg_.proof_backend == nullptr) {
+    cfg_.proof_backend = BuildDefaultProofBackend();
+  }
 }
 
 const PairwiseProductSession::Config& PairwiseProductSession::config() const {
@@ -155,12 +207,11 @@ PairwiseProductRequest PairwiseProductSession::CreateRequest(
       args.initiator_paillier->EncryptWithRandomBigInt(
           args.initiator_secret.mp_value());
 
-  const A1RangeProof a1_proof =
-      ProveA1Range(BuildProofContext(cfg_.session_id, cfg_.self_id,
-                                     args.responder_id, instance_id,
-                                     *cfg_.suite, cfg_.group),
-                   n, *args.responder_aux, encrypted.ciphertext,
-                   args.initiator_secret.mp_value(), encrypted.randomness);
+  const A1RangeProof a1_proof = cfg_.proof_backend->prove_a1_range(
+      BuildProofContext(cfg_.session_id, cfg_.self_id, args.responder_id,
+                        instance_id, *cfg_.suite, cfg_.group),
+      n, *args.responder_aux, encrypted.ciphertext,
+      args.initiator_secret.mp_value(), encrypted.randomness);
 
   RegisterInitiatorInstance(PairwiseProductInitiatorInstance{
       .responder = args.responder_id,
@@ -209,10 +260,10 @@ PairwiseProductSession::ConsumeRequest(const PairwiseProductRequest& request,
     TECDSA_THROW_ARGUMENT("pairwise product request ciphertext c1 is out of range");
   }
 
-  if (!VerifyA1Range(BuildProofContext(cfg_.session_id, request.from,
-                                       cfg_.self_id, request.instance_id,
-                                       *cfg_.suite, cfg_.group),
-                     n, *args.responder_aux, request.c1, request.a1_proof)) {
+  if (!cfg_.proof_backend->verify_a1_range(
+          BuildProofContext(cfg_.session_id, request.from, cfg_.self_id,
+                            request.instance_id, *cfg_.suite, cfg_.group),
+          n, *args.responder_aux, request.c1, request.a1_proof)) {
     TECDSA_THROW_ARGUMENT("pairwise product A1 proof verification failed");
   }
 
@@ -245,13 +296,13 @@ PairwiseProductSession::ConsumeRequest(const PairwiseProductRequest& request,
   };
 
   if (request.type == MtaType::kMta) {
-    response.a3_proof = ProveA3MtA(
+    response.a3_proof = cfg_.proof_backend->prove_a3_mta(
         BuildProofContext(cfg_.session_id, request.from, cfg_.self_id,
                           request.instance_id, *cfg_.suite, cfg_.group),
         n, *args.initiator_aux, request.c1, c2,
         args.responder_secret.mp_value(), y, r_b);
   } else {
-    response.a2_proof = ProveA2MtAwc(
+    response.a2_proof = cfg_.proof_backend->prove_a2_mtawc(
         BuildProofContext(cfg_.session_id, request.from, cfg_.self_id,
                           request.instance_id, *cfg_.suite, cfg_.group),
         n, *args.initiator_aux, request.c1, c2, *args.public_witness_point,
@@ -311,22 +362,22 @@ PairwiseProductSession::ConsumeResponse(const PairwiseProductResponse& response,
     if (!response.a3_proof.has_value() || response.a2_proof.has_value()) {
       TECDSA_THROW_ARGUMENT("MtA response must carry only an A3 proof");
     }
-    if (!VerifyA3MtA(BuildProofContext(cfg_.session_id, cfg_.self_id,
-                                       response.from, response.instance_id,
-                                       *cfg_.suite, cfg_.group),
-                     n, *args.initiator_aux, instance.c1, response.c2,
-                     *response.a3_proof)) {
+    if (!cfg_.proof_backend->verify_a3_mta(
+            BuildProofContext(cfg_.session_id, cfg_.self_id, response.from,
+                              response.instance_id, *cfg_.suite, cfg_.group),
+            n, *args.initiator_aux, instance.c1, response.c2,
+            *response.a3_proof)) {
       TECDSA_THROW_ARGUMENT("pairwise product A3 proof verification failed");
     }
   } else {
     if (!response.a2_proof.has_value() || response.a3_proof.has_value()) {
       TECDSA_THROW_ARGUMENT("MtAwc response must carry only an A2 proof");
     }
-    if (!VerifyA2MtAwc(BuildProofContext(cfg_.session_id, cfg_.self_id,
-                                         response.from, response.instance_id,
-                                         *cfg_.suite, cfg_.group),
-                       n, *args.initiator_aux, instance.c1, response.c2,
-                       *args.public_witness_point, *response.a2_proof)) {
+    if (!cfg_.proof_backend->verify_a2_mtawc(
+            BuildProofContext(cfg_.session_id, cfg_.self_id, response.from,
+                              response.instance_id, *cfg_.suite, cfg_.group),
+            n, *args.initiator_aux, instance.c1, response.c2,
+            *args.public_witness_point, *response.a2_proof)) {
       TECDSA_THROW_ARGUMENT("pairwise product A2 proof verification failed");
     }
   }
