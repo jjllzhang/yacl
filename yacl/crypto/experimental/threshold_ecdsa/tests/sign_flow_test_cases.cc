@@ -151,7 +151,8 @@ void TestStage6SignConstructorRejectsInvalidKeygenProofArtifacts() {
               "SignParty must reject invalid square-free keygen proof");
 
   SignConfig bad_aux_cfg = configs[cfg_idx];
-  bad_aux_cfg.public_keygen_data.all_aux_param_proofs.at(2).blob.back() ^= 0x01;
+  bad_aux_cfg.public_keygen_data.all_aux_param_proofs.at(2).pi_prm.blob.back() ^=
+      0x01;
   ExpectThrow([&]() { (void)SignParty(std::move(bad_aux_cfg)); },
               "SignParty must reject invalid aux keygen proof");
 }
@@ -262,23 +263,16 @@ void TestStage4Phase2InitUsesResponderOwnedAuxParams() {
   responder_cfg.public_keygen_data.all_aux_rsa_params[2] =
       initiator_aux_it->second;
   responder_cfg.public_keygen_data.all_aux_param_proofs[2] =
-      tecdsa::BuildAuxRsaParamProofStrict(
-          initiator_aux_it->second,
-          BuildKeygenProofContext(responder_cfg.keygen_session_id,
-                                  /*prover_id=*/2));
+      responder_cfg.public_keygen_data.all_aux_param_proofs.at(1);
 
-  SignPartyMap parties;
-  for (SignConfig& cfg : configs) {
-    parties.emplace(cfg.self_id, SignParty(std::move(cfg)));
-  }
-
-  const auto round1 = CollectRound1Messages(&parties, signers);
-  const auto round2_requests = CollectRound2Requests(&parties, signers, round1);
   ExpectThrow(
       [&]() {
-        (void)CollectRound2Responses(&parties, signers, round2_requests);
+        SignPartyMap parties;
+        for (SignConfig& cfg : configs) {
+          parties.emplace(cfg.self_id, SignParty(std::move(cfg)));
+        }
       },
-      "Responder must reject A1 verification under wrong aux params");
+      "SignParty must reject copied auxiliary proof under the wrong owner");
 }
 
 void TestStage4Phase2ResponseUsesInitiatorOwnedAuxParams() {
@@ -299,32 +293,16 @@ void TestStage4Phase2ResponseUsesInitiatorOwnedAuxParams() {
       "responder config must include self aux params");
   responder_cfg.public_keygen_data.all_aux_rsa_params[1] = self_aux_it->second;
   responder_cfg.public_keygen_data.all_aux_param_proofs[1] =
-      tecdsa::BuildAuxRsaParamProofStrict(
-          self_aux_it->second,
-          BuildKeygenProofContext(responder_cfg.keygen_session_id,
-                                  /*prover_id=*/1));
+      responder_cfg.public_keygen_data.all_aux_param_proofs.at(2);
 
-  SignPartyMap parties;
-  for (SignConfig& cfg : configs) {
-    parties.emplace(cfg.self_id, SignParty(std::move(cfg)));
-  }
-
-  const auto round1 = CollectRound1Messages(&parties, signers);
-  const auto round2_requests = CollectRound2Requests(&parties, signers, round1);
-  std::vector<SignRound2Request> requests_for_responder;
-  for (const SignRound2Request& request : round2_requests) {
-    if (request.from == 1 && request.to == 2) {
-      requests_for_responder.push_back(request);
-    }
-  }
-  Expect(requests_for_responder.size() == 2,
-         "expected two round2 requests from initiator to responder");
-
-  const std::vector<SignRound2Response> responder_responses =
-      parties.at(2).MakeRound2Responses(requests_for_responder);
   ExpectThrow(
-      [&]() { (void)parties.at(1).MakeRound3(responder_responses); },
-      "Initiator must reject A2/A3 verification under wrong aux params");
+      [&]() {
+        SignPartyMap parties;
+        for (SignConfig& cfg : configs) {
+          parties.emplace(cfg.self_id, SignParty(std::move(cfg)));
+        }
+      },
+      "SignParty must reject copied peer auxiliary proof under the wrong owner");
 }
 
 void TestM4SignEndToEndProducesVerifiableSignature() {

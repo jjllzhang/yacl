@@ -23,6 +23,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_setup.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
@@ -142,15 +143,15 @@ void KeygenParty::EnsureLocalProofsPrepared() {
   local_square_free_proof_ = BuildSquareFreeProofGmr98(
       local_paillier_public_.n, local_paillier_->private_lambda_bigint(),
       context);
-  local_aux_param_proof_ =
-      BuildAuxRsaParamProofStrict(local_aux_rsa_params_, context);
+  local_aux_param_proof_ = paillier::BuildAuxCorrectFormProof(
+      local_aux_rsa_params_, local_aux_rsa_witness_, context);
 
   if (!VerifySquareFreeProofGmr98(local_paillier_public_.n,
                                   local_square_free_proof_, context)) {
     TECDSA_THROW("failed to self-verify local square-free proof");
   }
-  if (!VerifyAuxRsaParamProofStrict(local_aux_rsa_params_, local_aux_param_proof_,
-                                    context)) {
+  if (!paillier::VerifyAuxCorrectFormProof(local_aux_rsa_params_,
+                                           local_aux_param_proof_, context)) {
     TECDSA_THROW("failed to self-verify local aux parameter proof");
   }
 }
@@ -198,8 +199,8 @@ KeygenRound2Out KeygenParty::MakeRound2(
     }
     const auto context = paillier::BuildProofContext(
         cfg_.session_id, peer, core::DefaultEcdsaSuite(), local_y_i_.group());
-    if (!VerifyAuxRsaParamProofStrict(msg.aux_rsa_params, msg.aux_param_proof,
-                                      context)) {
+    if (!paillier::VerifyAuxCorrectFormProof(msg.aux_rsa_params,
+                                             msg.aux_param_proof, context)) {
       TECDSA_THROW_ARGUMENT("peer aux parameter proof verification failed");
     }
 

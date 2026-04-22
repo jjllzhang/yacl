@@ -49,7 +49,7 @@ struct KeygenRound1Msg {
   Bytes commitment;
   PaillierPublicKey paillier_public;
   AuxRsaParams aux_rsa_params;
-  AuxRsaParamProof aux_param_proof;
+  AuxCorrectFormProof aux_param_proof;
 };
 
 struct KeygenRound2Broadcast {
@@ -86,7 +86,7 @@ struct PublicKeygenData {
   PeerMap<PaillierPublicKey> all_paillier_public;
   PeerMap<AuxRsaParams> all_aux_rsa_params;
   PeerMap<SquareFreeProof> all_square_free_proofs;
-  PeerMap<AuxRsaParamProof> all_aux_param_proofs;
+  PeerMap<AuxCorrectFormProof> all_aux_param_proofs;
 };
 
 struct KeygenOutput {
@@ -129,7 +129,7 @@ class KeygenParty {
   AuxRsaParams local_aux_rsa_params_;
   core::paillier::PaperAuxSetupWitness local_aux_rsa_witness_;
   SquareFreeProof local_square_free_proof_;
-  AuxRsaParamProof local_aux_param_proof_;
+  AuxCorrectFormProof local_aux_param_proof_;
 
   ECPoint local_Z_i_;
   Bytes local_commitment_;
@@ -139,7 +139,7 @@ class KeygenParty {
   PeerMap<Bytes> all_phase1_commitments_;
   PeerMap<PaillierPublicKey> all_paillier_public_;
   PeerMap<AuxRsaParams> all_aux_rsa_params_;
-  PeerMap<AuxRsaParamProof> all_aux_param_proofs_;
+  PeerMap<AuxCorrectFormProof> all_aux_param_proofs_;
 
   Scalar local_z_i_;
   Scalar local_gamma_i_;

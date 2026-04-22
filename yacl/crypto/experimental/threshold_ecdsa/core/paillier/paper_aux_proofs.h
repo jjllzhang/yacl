@@ -14,35 +14,15 @@
 
 #pragma once
 
-#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_types.h"
 
 namespace tecdsa::core::paillier {
 
-struct PiModProof {
-  Bytes blob;
-};
-
-struct PiPrmProof {
-  Bytes blob;
-};
-
-struct AuxCorrectFormProof {
-  PiModProof pi_mod;
-  PiPrmProof pi_prm;
-};
-
-struct PaperAuxSetupWitness {
-  BigInt p_tilde = BigInt(0);
-  BigInt q_tilde = BigInt(0);
-  BigInt P_tilde = BigInt(0);
-  BigInt Q_tilde = BigInt(0);
-  BigInt tau = BigInt(0);
-  BigInt lambda = BigInt(0);
-};
-
-struct PaperAuxSetupBundle {
-  AuxRsaParams params;
-  PaperAuxSetupWitness witness;
-};
+AuxCorrectFormProof BuildAuxCorrectFormProof(
+    const AuxRsaParams& params, const PaperAuxSetupWitness& witness,
+    const StrictProofVerifierContext& context);
+bool VerifyAuxCorrectFormProof(const AuxRsaParams& params,
+                               const AuxCorrectFormProof& proof,
+                               const StrictProofVerifierContext& context);
 
 }  // namespace tecdsa::core::paillier

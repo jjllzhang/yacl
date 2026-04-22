@@ -28,6 +28,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
@@ -189,8 +190,8 @@ SignParty::SignParty(SignConfig cfg)
                                               proof_context)) {
       TECDSA_THROW_ARGUMENT("square-free proof verification failed");
     }
-    if (!paillier::VerifyAuxRsaParamProofStrict(aux_params, aux_param_proof,
-                                                proof_context)) {
+    if (!paillier::VerifyAuxCorrectFormProof(aux_params, aux_param_proof,
+                                             proof_context)) {
       TECDSA_THROW_ARGUMENT("aux parameter proof verification failed");
     }
   }

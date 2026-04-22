@@ -64,7 +64,7 @@ class KeygenParty {
   AuxRsaParams local_aux_rsa_params_;
   core::paillier::PaperAuxSetupWitness local_aux_rsa_witness_;
   SquareFreeProof local_square_free_proof_;
-  AuxRsaParamProof local_aux_param_proof_;
+  AuxCorrectFormProof local_aux_param_proof_;
 
   ECPoint local_y_i_;
   Bytes local_commitment_;
@@ -74,7 +74,7 @@ class KeygenParty {
   PeerMap<Bytes> all_phase1_commitments_;
   PeerMap<PaillierPublicKey> all_paillier_public_;
   PeerMap<AuxRsaParams> all_aux_rsa_params_;
-  PeerMap<AuxRsaParamProof> all_aux_param_proofs_;
+  PeerMap<AuxCorrectFormProof> all_aux_param_proofs_;
 
   Scalar local_x_i_;
   ECPoint aggregated_y_;

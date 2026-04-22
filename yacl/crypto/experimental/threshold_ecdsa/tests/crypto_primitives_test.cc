@@ -28,6 +28,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_setup.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
@@ -246,21 +247,39 @@ void TestStage3CoreCryptoCompatibility() {
   const auto proof_ctx = tecdsa::core::paillier::BuildProofContext(
       Bytes{0x13, 0x37}, /*prover_id=*/1, DefaultEcdsaSuite(),
       DefaultGroupContext());
-  const auto aux_params =
-      tecdsa::core::paillier::GenerateAuxRsaParams(/*modulus_bits=*/64,
-                                                   /*party_id=*/1);
-  const auto aux_proof =
-      tecdsa::core::paillier::BuildAuxRsaParamProofStrict(aux_params,
-                                                          proof_ctx);
-  Expect(tecdsa::core::paillier::VerifyAuxRsaParamProofStrict(
-             aux_params, aux_proof, proof_ctx),
-         "core aux proof must verify under the original context");
+  const auto aux_setup =
+      tecdsa::core::paillier::GeneratePaperAuxSetup(/*modulus_bits=*/192);
+  const auto aux_proof = tecdsa::core::paillier::BuildAuxCorrectFormProof(
+      aux_setup.params, aux_setup.witness, proof_ctx);
+  Expect(tecdsa::core::paillier::VerifyAuxCorrectFormProof(
+             aux_setup.params, aux_proof, proof_ctx),
+         "paper auxiliary correct-form proof must verify under the original context");
 
   auto wrong_ctx = proof_ctx;
   wrong_ctx.session_id.push_back(0x01);
-  Expect(!tecdsa::core::paillier::VerifyAuxRsaParamProofStrict(
-             aux_params, aux_proof, wrong_ctx),
-         "core aux proof must bind the verifier context");
+  Expect(!tecdsa::core::paillier::VerifyAuxCorrectFormProof(
+             aux_setup.params, aux_proof, wrong_ctx),
+         "paper auxiliary correct-form proof must bind the verifier context");
+
+  const auto other_setup =
+      tecdsa::core::paillier::GeneratePaperAuxSetup(/*modulus_bits=*/192);
+  Expect(!tecdsa::core::paillier::VerifyAuxCorrectFormProof(
+             other_setup.params, aux_proof, proof_ctx),
+         "paper auxiliary correct-form proof must reject valid but mismatched parameters");
+
+  const auto other_proof = tecdsa::core::paillier::BuildAuxCorrectFormProof(
+      other_setup.params, other_setup.witness, proof_ctx);
+  auto tampered_proof = aux_proof;
+  tampered_proof.pi_prm = other_proof.pi_prm;
+  Expect(!tecdsa::core::paillier::VerifyAuxCorrectFormProof(
+             aux_setup.params, tampered_proof, proof_ctx),
+         "paper auxiliary correct-form proof must reject mixed valid subproofs");
+
+  tampered_proof = aux_proof;
+  tampered_proof.pi_mod.blob.back() ^= 0x01;
+  Expect(!tecdsa::core::paillier::VerifyAuxCorrectFormProof(
+             aux_setup.params, tampered_proof, proof_ctx),
+         "paper auxiliary correct-form proof must reject tampered payload bytes");
 
   const auto square_free =
       tecdsa::core::paillier::BuildSquareFreeProofGmr98(

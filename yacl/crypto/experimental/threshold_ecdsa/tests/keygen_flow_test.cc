@@ -104,7 +104,7 @@ void AssertKeygenOutputsConsistent(const KeygenOutputs& outputs,
                  current.public_keygen_data.all_square_free_proofs.at(peer),
                  proof_ctx),
              "square-free proof must verify");
-      Expect(tecdsa::VerifyAuxRsaParamProofStrict(
+      Expect(tecdsa::VerifyAuxCorrectFormProof(
                  current.public_keygen_data.all_aux_rsa_params.at(peer),
                  current.public_keygen_data.all_aux_param_proofs.at(peer),
                  proof_ctx),
@@ -202,7 +202,7 @@ void TestStrictModeMissingPhase1AuxProofAbortsReceiver() {
   auto parties = BuildParties(/*n=*/3, /*t=*/1, Bytes{0xC2, 0x03, 0x01});
   const std::vector<PartyIndex> participants = BuildParticipants(3);
   auto round1 = CollectRound1(&parties, participants);
-  round1.at(1).aux_param_proof.blob.clear();
+  round1.at(1).aux_param_proof.pi_mod.blob.clear();
 
   const auto peer_round1 = BuildPeerMapFor(participants, /*self_id=*/2, round1);
   ExpectThrow([&]() { (void)parties.at(2).MakeRound2(peer_round1); },
@@ -213,7 +213,7 @@ void TestStrictModeTamperedPhase1AuxProofAbortsReceiver() {
   auto parties = BuildParties(/*n=*/3, /*t=*/1, Bytes{0xC7, 0x03, 0x01});
   const std::vector<PartyIndex> participants = BuildParticipants(3);
   auto round1 = CollectRound1(&parties, participants);
-  round1.at(1).aux_param_proof.blob.back() ^= 0x01;
+  round1.at(1).aux_param_proof.pi_prm.blob.back() ^= 0x01;
 
   const auto peer_round1 = BuildPeerMapFor(participants, /*self_id=*/2, round1);
   ExpectThrow([&]() { (void)parties.at(2).MakeRound2(peer_round1); },
@@ -224,11 +224,11 @@ void TestStrictModeMalformedAuxParamsProofMismatchAbortsReceiver() {
   auto parties = BuildParties(/*n=*/3, /*t=*/1, Bytes{0xC8, 0x03, 0x01});
   const std::vector<PartyIndex> participants = BuildParticipants(3);
   auto round1 = CollectRound1(&parties, participants);
-  round1.at(1).aux_rsa_params.h1 = BigInt(0);
+  round1.at(1).aux_param_proof = round1.at(2).aux_param_proof;
 
   const auto peer_round1 = BuildPeerMapFor(participants, /*self_id=*/2, round1);
   ExpectThrow([&]() { (void)parties.at(2).MakeRound2(peer_round1); },
-              "receiver must reject malformed auxiliary parameters");
+              "receiver must reject mismatched auxiliary proof under valid parameters");
 }
 
 void TestStrictModeMissingPhase3SquareFreeProofAbortsReceiver() {

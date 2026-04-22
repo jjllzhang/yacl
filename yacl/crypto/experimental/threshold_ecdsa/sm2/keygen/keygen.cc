@@ -23,6 +23,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_setup.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
@@ -203,8 +204,8 @@ void KeygenParty::EnsureLocalProofsPrepared() {
   local_square_free_proof_ = BuildSquareFreeProofGmr98(
       local_paillier_public_.n, local_paillier_->private_lambda_bigint(),
       context);
-  local_aux_param_proof_ =
-      BuildAuxRsaParamProofStrict(local_aux_rsa_params_, context);
+  local_aux_param_proof_ = paillier::BuildAuxCorrectFormProof(
+      local_aux_rsa_params_, local_aux_rsa_witness_, context);
 }
 
 KeygenRound1Msg KeygenParty::MakeRound1() {
@@ -251,8 +252,8 @@ KeygenRound2Out KeygenParty::MakeRound2(
         paillier::BuildProofContext(cfg_.session_id, peer,
                                     core::DefaultSm2Suite(),
                                     internal::Sm2Group());
-    if (!VerifyAuxRsaParamProofStrict(msg.aux_rsa_params, msg.aux_param_proof,
-                                      context)) {
+    if (!paillier::VerifyAuxCorrectFormProof(msg.aux_rsa_params,
+                                             msg.aux_param_proof, context)) {
       TECDSA_THROW_ARGUMENT("peer aux parameter proof verification failed");
     }
 

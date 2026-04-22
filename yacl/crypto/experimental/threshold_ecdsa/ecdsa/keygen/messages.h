@@ -35,7 +35,7 @@ struct KeygenRound1Msg {
   Bytes commitment;
   PaillierPublicKey paillier_public;
   AuxRsaParams aux_rsa_params;
-  AuxRsaParamProof aux_param_proof;
+  AuxCorrectFormProof aux_param_proof;
 };
 
 struct KeygenRound2Broadcast {
@@ -67,7 +67,7 @@ struct PublicKeygenData {
   PeerMap<PaillierPublicKey> all_paillier_public;
   PeerMap<AuxRsaParams> all_aux_rsa_params;
   PeerMap<SquareFreeProof> all_square_free_proofs;
-  PeerMap<AuxRsaParamProof> all_aux_param_proofs;
+  PeerMap<AuxCorrectFormProof> all_aux_param_proofs;
 };
 
 struct KeygenOutput {
