@@ -51,6 +51,10 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_affine.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_range.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_range.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_sqr.h"
 namespace {
 
 using tecdsa::BigInt;
@@ -476,6 +480,78 @@ void TestStage4MtaAndRelationHelpers() {
          "ecdsa relation proof must bind the R statement");
 }
 
+void TestStage4Sm2ProofOwners() {
+  const auto& sm2_suite = DefaultSm2Suite();
+  const auto sm2_group = tecdsa::core::GroupContext::Create(sm2_suite.curve);
+
+  PaillierProvider paillier(/*modulus_bits=*/512);
+  const auto aux_params =
+      tecdsa::core::paillier::GenerateAuxRsaParams(/*modulus_bits=*/64,
+                                                   /*party_id=*/7);
+  const BigInt witness = Scalar::FromUint64(9).mp_value();
+  const auto encrypted = paillier.EncryptWithRandomBigInt(witness);
+  const auto ctx = tecdsa::core::mta::BuildProofContext(
+      Bytes{0x53, 0x40}, /*initiator_id=*/1, /*responder_id=*/2,
+      Bytes{0x00, 0x01, 0x02, 0x03}, sm2_suite, sm2_group);
+
+  const auto pi_range = tecdsa::sm2::proofs::ProvePiRange(
+      ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+      witness, encrypted.randomness);
+  Expect(tecdsa::sm2::proofs::VerifyPiRange(
+             ctx, paillier.modulus_n_bigint(), aux_params,
+             encrypted.ciphertext, pi_range),
+         "sm2::proofs pi_range must verify under the original context");
+  auto tampered_range_ctx = ctx;
+  tampered_range_ctx.session_id.push_back(0x01);
+  Expect(!tecdsa::sm2::proofs::VerifyPiRange(
+             tampered_range_ctx, paillier.modulus_n_bigint(), aux_params,
+             encrypted.ciphertext, pi_range),
+         "sm2::proofs pi_range must bind the session id");
+
+  const BigInt witness_x = Scalar::FromUint64(15).mp_value();
+  const BigInt witness_y = Scalar::FromUint64(6).mp_value();
+  const BigInt responder_random =
+      tecdsa::bigint::RandomZnStar(paillier.modulus_n_bigint());
+  const BigInt c2 = paillier.AddCiphertextsBigInt(
+      paillier.MulPlaintextBigInt(encrypted.ciphertext, witness_x),
+      paillier.EncryptWithProvidedRandomBigInt(witness_y, responder_random));
+  const auto pi_linear = tecdsa::sm2::proofs::ProvePiLinear(
+      ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext, c2,
+      witness_x, witness_y, responder_random);
+  Expect(tecdsa::sm2::proofs::VerifyPiLinear(
+             ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+             c2, pi_linear),
+         "sm2::proofs pi_linear must verify under the original relation");
+  Expect(!tecdsa::sm2::proofs::VerifyPiLinear(
+             ctx, paillier.modulus_n_bigint(), aux_params, encrypted.ciphertext,
+             c2 + BigInt(1), pi_linear),
+         "sm2::proofs pi_linear must reject a mismatched Paillier relation");
+
+  const Scalar group_witness = Scalar::FromUint64(7, sm2_group);
+  const ECPoint group_statement = ECPoint::GeneratorMultiply(group_witness);
+  const auto pi_group = tecdsa::sm2::proofs::BuildPiGroupProof(
+      Bytes{0x53, 0x41}, /*prover_id=*/3, group_statement, group_witness);
+  Expect(tecdsa::sm2::proofs::VerifyPiGroupProof(
+             Bytes{0x53, 0x41}, /*prover_id=*/3, group_statement, pi_group),
+         "sm2::proofs pi_group must verify under the original context");
+  Expect(!tecdsa::sm2::proofs::VerifyPiGroupProof(
+             Bytes{0x53, 0x42}, /*prover_id=*/3, group_statement, pi_group),
+         "sm2::proofs pi_group must bind the session id");
+
+  const auto proof_ctx = tecdsa::core::paillier::BuildProofContext(
+      Bytes{0x53, 0x42}, /*prover_id=*/3, sm2_suite, sm2_group);
+  const auto pi_sqr = tecdsa::sm2::proofs::BuildPiSqrProof(
+      paillier.modulus_n_bigint(), paillier.private_lambda_bigint(), proof_ctx);
+  Expect(tecdsa::sm2::proofs::VerifyPiSqrProof(
+             paillier.modulus_n_bigint(), pi_sqr, proof_ctx),
+         "sm2::proofs pi_sqr must verify under the original context");
+  auto tampered_pi_sqr = pi_sqr;
+  tampered_pi_sqr.blob.back() ^= 0x01;
+  Expect(!tecdsa::sm2::proofs::VerifyPiSqrProof(
+             paillier.modulus_n_bigint(), tampered_pi_sqr, proof_ctx),
+         "sm2::proofs pi_sqr must reject tampered payload bytes");
+}
+
 void TestStage13MtaContextUsesExplicitSuite() {
   const auto& sm2_suite = tecdsa::core::DefaultSm2Suite();
   tecdsa::core::mta::PairwiseProductSession sm2_session(
@@ -811,6 +887,7 @@ int main() {
     TestStage3CoreCryptoCompatibility();
     TestPaperAuxSetupGeneration();
     TestStage4MtaAndRelationHelpers();
+    TestStage4Sm2ProofOwners();
     TestStage12ExplicitTranscriptAndCommitmentContext();
     TestStage13MtaContextUsesExplicitSuite();
     TestMpIntRoundTrip();

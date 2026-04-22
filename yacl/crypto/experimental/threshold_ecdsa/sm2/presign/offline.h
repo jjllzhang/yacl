@@ -21,8 +21,8 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/keygen/keygen.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 
 namespace tecdsa::sm2::presign {
 
@@ -47,7 +47,7 @@ using Round2Response = tecdsa::core::mta::PairwiseProductResponse;
 struct Round3Msg {
   ECPoint K_i;
   Bytes randomness;
-  tecdsa::core::proof::SchnorrProof k_proof;
+  proofs::PiGroupProof k_proof;
   Scalar delta_i;
 };
 

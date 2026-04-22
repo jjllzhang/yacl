@@ -110,7 +110,10 @@ yacl_cc_binary(
     name = "crypto_primitives_tests",
     srcs = ["tests/crypto_primitives_test.cc"],
     copts = TECDSA_COPTS,
-    deps = [":tecdsa_core"],
+    deps = [
+        ":tecdsa_core",
+        ":tsig_sm2",
+    ],
 )
 
 yacl_cc_binary(

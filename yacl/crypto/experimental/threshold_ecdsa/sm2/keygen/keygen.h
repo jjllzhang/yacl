@@ -23,11 +23,12 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_types.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_sqr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/zid/zid.h"
 
 namespace tecdsa::sm2::keygen {
@@ -69,8 +70,8 @@ using KeygenRound3Response = tecdsa::core::mta::PairwiseProductResponse;
 struct KeygenRound4Msg {
   Scalar sigma_i;
   ECPoint Gamma_i;
-  tecdsa::core::proof::SchnorrProof gamma_proof;
-  SquareFreeProof square_free_proof;
+  proofs::PiGroupProof gamma_proof;
+  proofs::PiSqrProof square_free_proof;
 };
 
 struct LocalKeyShare {
@@ -85,7 +86,7 @@ struct PublicKeygenData {
   PeerMap<ECPoint> all_plus_one_public_shares;
   PeerMap<PaillierPublicKey> all_paillier_public;
   PeerMap<AuxRsaParams> all_aux_rsa_params;
-  PeerMap<SquareFreeProof> all_square_free_proofs;
+  PeerMap<proofs::PiSqrProof> all_square_free_proofs;
   PeerMap<AuxCorrectFormProof> all_aux_param_proofs;
 };
 
@@ -128,7 +129,7 @@ class KeygenParty {
   PaillierPublicKey local_paillier_public_;
   AuxRsaParams local_aux_rsa_params_;
   core::paillier::PaperAuxSetupWitness local_aux_rsa_witness_;
-  SquareFreeProof local_square_free_proof_;
+  proofs::PiSqrProof local_square_free_proof_;
   AuxCorrectFormProof local_aux_param_proof_;
 
   ECPoint local_Z_i_;

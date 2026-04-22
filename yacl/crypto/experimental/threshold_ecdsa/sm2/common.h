@@ -23,8 +23,6 @@
 #include "yacl/crypto/ecc/ecc_spi.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
@@ -111,21 +109,6 @@ inline Bytes SerializeUncompressed(const ECPoint& point) {
   const yacl::Buffer encoded = group.ec_group().SerializePoint(
       ec_point, yacl::crypto::PointOctetFormat::X962Uncompressed);
   return Bytes(encoded.data<uint8_t>(), encoded.data<uint8_t>() + encoded.size());
-}
-
-inline core::proof::SchnorrProof BuildSchnorrProof(const Bytes& session_id,
-                                                   PartyIndex prover_id,
-                                                   const ECPoint& statement,
-                                                   const Scalar& witness) {
-  return core::proof::BuildSchnorrProof(core::DefaultSm2Suite(), session_id,
-                                        prover_id, statement, witness);
-}
-
-inline bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
-                               const ECPoint& statement,
-                               const core::proof::SchnorrProof& proof) {
-  return core::proof::VerifySchnorrProof(core::DefaultSm2Suite(), session_id,
-                                         prover_id, statement, proof);
 }
 
 }  // namespace tecdsa::sm2::internal

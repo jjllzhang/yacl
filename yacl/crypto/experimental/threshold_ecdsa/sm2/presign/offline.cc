@@ -22,6 +22,8 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
 
 namespace tecdsa::sm2::presign {
 namespace {
@@ -76,7 +78,7 @@ OfflineParty::OfflineParty(OfflineConfig cfg)
                       .self_id = cfg_.self_id,
                       .suite = core::DefaultSm2Suite(),
                       .group = internal::Sm2Group(),
-                      .proof_backend = nullptr}) {
+                      .proof_backend = proofs::BuildSm2ProofBackend()}) {
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "sm2::presign::OfflineParty");
   peers_ = participant_set.peers;
@@ -191,8 +193,8 @@ Round3Msg OfflineParty::MakeRound3(
       .K_i = local_K_i_,
       .randomness = local_randomness_,
       .k_proof =
-          internal::BuildSchnorrProof(cfg_.session_id, cfg_.self_id, local_K_i_,
-                                      local_k_i_),
+          proofs::BuildPiGroupProof(cfg_.session_id, cfg_.self_id, local_K_i_,
+                                    local_k_i_),
       .delta_i = local_delta_i_,
   };
   return *round3_;
@@ -223,9 +225,9 @@ OfflineState OfflineParty::Finalize(const PeerMap<Round3Msg>& peer_round3) {
             commitment_it->second)) {
       TECDSA_THROW_ARGUMENT("SM2 offline nonce opening verification failed");
     }
-    if (!internal::VerifySchnorrProof(cfg_.session_id, peer, msg.K_i,
-                                      msg.k_proof)) {
-      TECDSA_THROW_ARGUMENT("SM2 offline nonce Schnorr proof verification failed");
+    if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.K_i,
+                                    msg.k_proof)) {
+      TECDSA_THROW_ARGUMENT("SM2 offline nonce pi_group verification failed");
     }
     k_points.push_back(msg.K_i);
   }

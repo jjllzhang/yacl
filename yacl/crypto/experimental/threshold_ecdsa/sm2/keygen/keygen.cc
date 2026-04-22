@@ -28,6 +28,9 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_sqr.h"
 
 namespace tecdsa::sm2::keygen {
 namespace {
@@ -95,7 +98,7 @@ KeygenParty::KeygenParty(KeygenConfig cfg)
                       .self_id = cfg_.self_id,
                       .suite = core::DefaultSm2Suite(),
                       .group = internal::Sm2Group(),
-                      .proof_backend = nullptr}) {
+                      .proof_backend = proofs::BuildSm2ProofBackend()}) {
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "sm2::keygen::KeygenParty");
   peers_ = participant_set.peers;
@@ -202,7 +205,7 @@ void KeygenParty::EnsureLocalProofsPrepared() {
                                        local_aux_rsa_witness_)) {
     TECDSA_THROW("failed to validate local paper auxiliary setup");
   }
-  local_square_free_proof_ = BuildSquareFreeProofGmr98(
+  local_square_free_proof_ = proofs::BuildPiSqrProof(
       local_paillier_public_.n, local_paillier_->private_lambda_bigint(),
       context);
   local_aux_param_proof_ = paillier::BuildAuxCorrectFormProof(
@@ -401,9 +404,8 @@ KeygenRound4Msg KeygenParty::MakeRound4(
   round4_ = KeygenRound4Msg{
       .sigma_i = local_sigma_i_,
       .Gamma_i = local_Gamma_i_,
-      .gamma_proof =
-          internal::BuildSchnorrProof(cfg_.session_id, cfg_.self_id,
-                                      local_Gamma_i_, local_gamma_i_),
+      .gamma_proof = proofs::BuildPiGroupProof(cfg_.session_id, cfg_.self_id,
+                                               local_Gamma_i_, local_gamma_i_),
       .square_free_proof = local_square_free_proof_,
   };
   return *round4_;
@@ -433,17 +435,17 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound4Msg>& peer_round4) 
 
   for (PartyIndex peer : peers_) {
     const auto& msg = peer_round4.at(peer);
-    if (!internal::VerifySchnorrProof(cfg_.session_id, peer, msg.Gamma_i,
-                                      msg.gamma_proof)) {
-      TECDSA_THROW_ARGUMENT("peer gamma Schnorr proof verification failed");
+    if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.Gamma_i,
+                                    msg.gamma_proof)) {
+      TECDSA_THROW_ARGUMENT("peer gamma proof verification failed");
     }
     const auto context =
         paillier::BuildProofContext(cfg_.session_id, peer,
                                     core::DefaultSm2Suite(),
                                     internal::Sm2Group());
-    if (!VerifySquareFreeProofGmr98(all_paillier_public_.at(peer).n,
-                                    msg.square_free_proof, context)) {
-      TECDSA_THROW_ARGUMENT("peer square-free proof verification failed");
+    if (!proofs::VerifyPiSqrProof(all_paillier_public_.at(peer).n,
+                                  msg.square_free_proof, context)) {
+      TECDSA_THROW_ARGUMENT("peer pi_sqr proof verification failed");
     }
 
     sigma = sigma + msg.sigma_i;
