@@ -19,6 +19,9 @@ namespace {
 
 using tecdsa::Bytes;
 using tecdsa::PartyIndex;
+using tecdsa::sm2::detection::AbortKind;
+using tecdsa::sm2::detection::AbortStage;
+using tecdsa::sm2::detection::EvidenceKind;
 using tecdsa::sm2::keygen::KeygenRound4Msg;
 using tecdsa::sm2::presign::Round3Msg;
 using tecdsa::sm2::test::BuildKeygenParties;
@@ -26,9 +29,24 @@ using tecdsa::sm2::test::BuildOfflineParties;
 using tecdsa::sm2::test::BuildOnlineParties;
 using tecdsa::sm2::test::BuildParticipants;
 using tecdsa::sm2::test::BuildPeerMapFor;
-using tecdsa::sm2::test::ExpectThrow;
+using tecdsa::sm2::test::Expect;
 using tecdsa::sm2::test::RunKeygen;
 using tecdsa::sm2::test::RunOffline;
+
+void ExpectAbort(const std::optional<tecdsa::sm2::detection::AbortEvidence>& abort,
+                 AbortStage stage, AbortKind kind, EvidenceKind evidence_kind,
+                 std::optional<PartyIndex> culprit,
+                 const std::optional<Bytes>& instance_id,
+                 const std::string& message) {
+  Expect(abort.has_value(), message + ": missing abort report");
+  Expect(abort->stage == stage, message + ": wrong stage");
+  Expect(abort->kind == kind, message + ": wrong abort kind");
+  Expect(abort->evidence_kind == evidence_kind,
+         message + ": wrong evidence kind");
+  Expect(abort->culprit == culprit, message + ": wrong culprit");
+  Expect(abort->instance_id == instance_id, message + ": wrong instance id");
+  Expect(!abort->reason.empty(), message + ": missing reason");
+}
 
 void TestTamperedKeygenGammaProofAbortsFinalize() {
   const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
@@ -90,11 +108,14 @@ void TestTamperedKeygenGammaProofAbortsFinalize() {
       round4.at(1).gamma_proof.z +
       tecdsa::Scalar::FromUint64(1, round4.at(1).gamma_proof.z.group());
 
-  ExpectThrow(
-      [&]() {
-        (void)parties.at(2).Finalize(BuildPeerMapFor(participants, 2, round4));
-      },
-      "SM2 keygen finalize must reject tampered gamma proof");
+  const auto result =
+      parties.at(2).TryFinalize(BuildPeerMapFor(participants, 2, round4));
+  Expect(!result.ok(),
+         "SM2 keygen finalize must reject tampered gamma proof");
+  ExpectAbort(result.abort, AbortStage::kKeygen, AbortKind::kIdentifiable,
+              EvidenceKind::kGammaProof, /*culprit=*/1,
+              /*instance_id=*/std::nullopt,
+              "SM2 keygen finalize gamma blame");
 }
 
 void TestTamperedOfflineNonceProofAbortsFinalize() {
@@ -143,11 +164,58 @@ void TestTamperedOfflineNonceProofAbortsFinalize() {
       round3.at(1).k_proof.z +
       tecdsa::Scalar::FromUint64(1, round3.at(1).k_proof.z.group());
 
-  ExpectThrow(
-      [&]() {
-        (void)parties.at(2).Finalize(BuildPeerMapFor(participants, 2, round3));
-      },
-      "SM2 offline finalize must reject tampered nonce proof");
+  const auto result =
+      parties.at(2).TryFinalize(BuildPeerMapFor(participants, 2, round3));
+  Expect(!result.ok(),
+         "SM2 offline finalize must reject tampered nonce proof");
+  ExpectAbort(result.abort, AbortStage::kOffline, AbortKind::kIdentifiable,
+              EvidenceKind::kNonceProof, /*culprit=*/1,
+              /*instance_id=*/std::nullopt,
+              "SM2 offline finalize nonce blame");
+}
+
+void TestTamperedOfflineA1ProofIdentifiesCulprit() {
+  const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
+  const auto participants = BuildParticipants(3);
+  const auto keygen_outputs =
+      RunKeygen(/*n=*/3, /*t=*/1, Bytes{0x84, 0x07}, signer_id);
+  auto parties =
+      BuildOfflineParties(participants, keygen_outputs, Bytes{0x84, 0x08});
+
+  tecdsa::sm2::presign::PeerMap<tecdsa::sm2::presign::Round1Msg> round1;
+  for (PartyIndex party : participants) {
+    round1.emplace(party, parties.at(party).MakeRound1());
+  }
+
+  std::vector<tecdsa::sm2::presign::Round2Request> all_requests;
+  for (PartyIndex party : participants) {
+    const auto requests = parties.at(party).MakeRound2Requests(
+        BuildPeerMapFor(participants, party, round1));
+    all_requests.insert(all_requests.end(), requests.begin(), requests.end());
+  }
+
+  std::optional<Bytes> tampered_instance_id;
+  for (auto& request : all_requests) {
+    if (request.from == 1 && request.to == 2) {
+      request.a1_proof.s2 = request.a1_proof.s2 + decltype(request.a1_proof.s2)(1);
+      tampered_instance_id = request.instance_id;
+      break;
+    }
+  }
+  Expect(tampered_instance_id.has_value(),
+         "SM2 offline A1 tamper case must locate request from 1 to 2");
+
+  std::unordered_map<PartyIndex, std::vector<tecdsa::sm2::presign::Round2Request>>
+      grouped_requests;
+  for (const auto& request : all_requests) {
+    grouped_requests[request.to].push_back(request);
+  }
+
+  const auto result = parties.at(2).TryMakeRound2Responses(grouped_requests.at(2));
+  Expect(!result.ok(), "SM2 offline MtA must reject tampered A1 proof");
+  ExpectAbort(result.abort, AbortStage::kOffline, AbortKind::kIdentifiable,
+              EvidenceKind::kMtaProof, /*culprit=*/1, tampered_instance_id,
+              "SM2 offline MtA blame");
 }
 
 void TestTamperedOnlinePartialAbortsFinalize() {
@@ -168,11 +236,14 @@ void TestTamperedOnlinePartialAbortsFinalize() {
   partials.at(1) =
       partials.at(1) + tecdsa::Scalar::FromUint64(1, partials.at(1).group());
 
-  ExpectThrow(
-      [&]() {
-        (void)parties.at(2).Finalize(BuildPeerMapFor(participants, 2, partials));
-      },
-      "SM2 online finalize must reject a tampered partial signature");
+  const auto result =
+      parties.at(2).TryFinalize(BuildPeerMapFor(participants, 2, partials));
+  Expect(!result.ok(),
+         "SM2 online finalize must reject a tampered partial signature");
+  ExpectAbort(result.abort, AbortStage::kOnline, AbortKind::kUnattributed,
+              EvidenceKind::kPartialSignature, /*culprit=*/std::nullopt,
+              /*instance_id=*/std::nullopt,
+              "SM2 online partial abort should be unattributed");
 }
 
 }  // namespace
@@ -180,6 +251,7 @@ void TestTamperedOnlinePartialAbortsFinalize() {
 void RunTamperCaseTests() {
   TestTamperedKeygenGammaProofAbortsFinalize();
   TestTamperedOfflineNonceProofAbortsFinalize();
+  TestTamperedOfflineA1ProofIdentifiesCulprit();
   TestTamperedOnlinePartialAbortsFinalize();
 }
 

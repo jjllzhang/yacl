@@ -21,6 +21,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/keygen/keygen.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 
@@ -65,9 +66,13 @@ class OfflineParty {
   Round1Msg MakeRound1();
   std::vector<Round2Request> MakeRound2Requests(
       const PeerMap<Round1Msg>& peer_round1);
+  detection::DetectionResult<std::vector<Round2Response>>
+  TryMakeRound2Responses(const std::vector<Round2Request>& requests_for_self);
   std::vector<Round2Response> MakeRound2Responses(
       const std::vector<Round2Request>& requests_for_self);
   Round3Msg MakeRound3(const std::vector<Round2Response>& responses_for_self);
+  detection::DetectionResult<OfflineState> TryFinalize(
+      const PeerMap<Round3Msg>& peer_round3);
   OfflineState Finalize(const PeerMap<Round3Msg>& peer_round3);
 
  private:

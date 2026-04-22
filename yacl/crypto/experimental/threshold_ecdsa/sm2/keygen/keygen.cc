@@ -28,6 +28,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/evidence.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_sqr.h"
@@ -351,32 +352,60 @@ std::vector<KeygenRound3Request> KeygenParty::MakeRound3Requests(
 
 std::vector<KeygenRound3Response> KeygenParty::MakeRound3Responses(
     const std::vector<KeygenRound3Request>& requests_for_self) {
+  const auto result = TryMakeRound3Responses(requests_for_self);
+  if (!result.ok()) {
+    TECDSA_THROW_ARGUMENT(result.abort->reason);
+  }
+  return *result.value;
+}
+
+detection::DetectionResult<std::vector<KeygenRound3Response>>
+KeygenParty::TryMakeRound3Responses(
+    const std::vector<KeygenRound3Request>& requests_for_self) {
   if (round3_responses_.has_value()) {
-    return *round3_responses_;
+    return {.value = *round3_responses_, .abort = std::nullopt};
   }
   if (round3_requests_.empty()) {
     TECDSA_THROW_LOGIC(
         "MakeRound3Requests must be completed before MakeRound3Responses");
   }
 
-  RequireExactlyOneRequestPerPeer(requests_for_self, peers_, cfg_.self_id);
+  try {
+    RequireExactlyOneRequestPerPeer(requests_for_self, peers_, cfg_.self_id);
+  } catch (const std::exception& ex) {
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kKeygen,
+                detection::EvidenceKind::kMtaProof, cfg_.session_id,
+                cfg_.self_id, ex.what())};
+  }
 
   std::vector<KeygenRound3Response> out;
   out.reserve(requests_for_self.size());
+  Scalar responder_sum = sigma_responder_sum_;
   for (const auto& request : requests_for_self) {
-    const auto consume = sigma_session_.ConsumeRequest(
-        request,
-        {.initiator_modulus_n = all_paillier_public_.at(request.from).n,
-         .responder_aux = &all_aux_rsa_params_.at(cfg_.self_id),
-         .initiator_aux = &all_aux_rsa_params_.at(request.from),
-         .responder_secret = local_z_i_,
-         .public_witness_point = std::nullopt});
-    sigma_responder_sum_ = sigma_responder_sum_ + consume.responder_share;
-    out.push_back(consume.response);
+    try {
+      const auto consume = sigma_session_.ConsumeRequest(
+          request,
+          {.initiator_modulus_n = all_paillier_public_.at(request.from).n,
+           .responder_aux = &all_aux_rsa_params_.at(cfg_.self_id),
+           .initiator_aux = &all_aux_rsa_params_.at(request.from),
+           .responder_secret = local_z_i_,
+           .public_witness_point = std::nullopt});
+      responder_sum = responder_sum + consume.responder_share;
+      out.push_back(consume.response);
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kKeygen,
+                  detection::EvidenceKind::kMtaProof, cfg_.session_id,
+                  cfg_.self_id, request.from, ex.what(), request.instance_id)};
+    }
   }
 
+  sigma_responder_sum_ = responder_sum;
   round3_responses_ = out;
-  return *round3_responses_;
+  return {.value = *round3_responses_, .abort = std::nullopt};
 }
 
 KeygenRound4Msg KeygenParty::MakeRound4(
@@ -412,15 +441,32 @@ KeygenRound4Msg KeygenParty::MakeRound4(
 }
 
 KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound4Msg>& peer_round4) {
+  const auto result = TryFinalize(peer_round4);
+  if (!result.ok()) {
+    TECDSA_THROW_ARGUMENT(result.abort->reason);
+  }
+  return *result.value;
+}
+
+detection::DetectionResult<KeygenOutput> KeygenParty::TryFinalize(
+    const PeerMap<KeygenRound4Msg>& peer_round4) {
   if (output_.has_value()) {
-    return *output_;
+    return {.value = *output_, .abort = std::nullopt};
   }
   if (!round4_.has_value()) {
     TECDSA_THROW_LOGIC("MakeRound4 must be completed before Finalize");
   }
 
-  core::participant::RequireExactlyPeers(peer_round4, cfg_.participants,
-                                         cfg_.self_id, "peer_round4");
+  try {
+    core::participant::RequireExactlyPeers(peer_round4, cfg_.participants,
+                                           cfg_.self_id, "peer_round4");
+  } catch (const std::exception& ex) {
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kKeygen,
+                detection::EvidenceKind::kGammaProof, cfg_.session_id,
+                cfg_.self_id, ex.what())};
+  }
 
   Scalar sigma = local_sigma_i_;
   std::vector<ECPoint> gamma_points;
@@ -435,17 +481,43 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound4Msg>& peer_round4) 
 
   for (PartyIndex peer : peers_) {
     const auto& msg = peer_round4.at(peer);
-    if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.Gamma_i,
-                                    msg.gamma_proof)) {
-      TECDSA_THROW_ARGUMENT("peer gamma proof verification failed");
+    try {
+      if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.Gamma_i,
+                                      msg.gamma_proof)) {
+        return {.value = std::nullopt,
+                .abort = detection::MakeIdentifiableAbort(
+                    detection::AbortStage::kKeygen,
+                    detection::EvidenceKind::kGammaProof, cfg_.session_id,
+                    cfg_.self_id, peer,
+                    "peer gamma proof verification failed")};
+      }
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kKeygen,
+                  detection::EvidenceKind::kGammaProof, cfg_.session_id,
+                  cfg_.self_id, peer, ex.what())};
     }
     const auto context =
         paillier::BuildProofContext(cfg_.session_id, peer,
                                     core::DefaultSm2Suite(),
                                     internal::Sm2Group());
-    if (!proofs::VerifyPiSqrProof(all_paillier_public_.at(peer).n,
-                                  msg.square_free_proof, context)) {
-      TECDSA_THROW_ARGUMENT("peer pi_sqr proof verification failed");
+    try {
+      if (!proofs::VerifyPiSqrProof(all_paillier_public_.at(peer).n,
+                                    msg.square_free_proof, context)) {
+        return {.value = std::nullopt,
+                .abort = detection::MakeIdentifiableAbort(
+                    detection::AbortStage::kKeygen,
+                    detection::EvidenceKind::kSquareFreeProof, cfg_.session_id,
+                    cfg_.self_id, peer,
+                    "peer pi_sqr proof verification failed")};
+      }
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kKeygen,
+                  detection::EvidenceKind::kSquareFreeProof, cfg_.session_id,
+                  cfg_.self_id, peer, ex.what())};
     }
 
     sigma = sigma + msg.sigma_i;
@@ -454,7 +526,11 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound4Msg>& peer_round4) 
   }
 
   if (sigma.value() == 0) {
-    TECDSA_THROW_ARGUMENT("aggregated sigma is zero");
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kKeygen,
+                detection::EvidenceKind::kGammaProof, cfg_.session_id,
+                cfg_.self_id, "aggregated sigma is zero")};
   }
   const Scalar sigma_inverse = sigma.InverseModQ();
   public_data.sigma_inverse = sigma_inverse;
@@ -476,11 +552,20 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound4Msg>& peer_round4) 
         plus_one_public.Add(ECPoint::GeneratorMultiply(internal::Sm2Negate(
             internal::Sm2One())));
   } catch (const std::exception& ex) {
-    TECDSA_THROW(std::string("failed to derive SM2 public key: ") + ex.what());
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kKeygen,
+                detection::EvidenceKind::kGammaProof, cfg_.session_id,
+                cfg_.self_id,
+                std::string("failed to derive SM2 public key: ") + ex.what())};
   }
 
   if (public_data.public_key == plus_one_public) {
-    TECDSA_THROW_ARGUMENT("invalid SM2 public key derivation");
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kKeygen,
+                detection::EvidenceKind::kGammaProof, cfg_.session_id,
+                cfg_.self_id, "invalid SM2 public key derivation")};
   }
 
   zid::IdentityBinding binding =
@@ -492,10 +577,10 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound4Msg>& peer_round4) 
               .z_i = local_z_i_,
               .paillier = local_paillier_,
               .binding = std::move(binding),
-          },
+      },
       .public_keygen_data = std::move(public_data),
   };
-  return *output_;
+  return {.value = *output_, .abort = std::nullopt};
 }
 
 }  // namespace tecdsa::sm2::keygen

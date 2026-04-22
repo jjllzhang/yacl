@@ -19,6 +19,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/evidence.h"
 
 namespace tecdsa::sm2::sign {
 
@@ -51,12 +52,29 @@ Scalar OnlineParty::MakePartialSignature() {
 }
 
 verify::Signature OnlineParty::Finalize(const PeerMap<Scalar>& peer_partials) {
+  const auto result = TryFinalize(peer_partials);
+  if (!result.ok()) {
+    TECDSA_THROW_ARGUMENT(result.abort->reason);
+  }
+  return *result.value;
+}
+
+detection::DetectionResult<verify::Signature> OnlineParty::TryFinalize(
+    const PeerMap<Scalar>& peer_partials) {
   if (signature_.has_value()) {
-    return *signature_;
+    return {.value = *signature_, .abort = std::nullopt};
   }
 
-  core::participant::RequireExactlyPeers(peer_partials, cfg_.participants,
-                                         cfg_.self_id, "peer_partials");
+  try {
+    core::participant::RequireExactlyPeers(peer_partials, cfg_.participants,
+                                           cfg_.self_id, "peer_partials");
+  } catch (const std::exception& ex) {
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kOnline,
+                detection::EvidenceKind::kPartialSignature, cfg_.session_id,
+                cfg_.self_id, ex.what())};
+  }
 
   Scalar s_prime = MakePartialSignature();
   for (PartyIndex peer : peers_) {
@@ -64,7 +82,11 @@ verify::Signature OnlineParty::Finalize(const PeerMap<Scalar>& peer_partials) {
   }
   const Scalar s = s_prime - r_;
   if (s.value() == 0) {
-    TECDSA_THROW_ARGUMENT("aggregated SM2 signature scalar s is zero");
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kOnline,
+                detection::EvidenceKind::kPartialSignature, cfg_.session_id,
+                cfg_.self_id, "aggregated SM2 signature scalar s is zero")};
   }
 
   verify::Signature signature{
@@ -75,11 +97,15 @@ verify::Signature OnlineParty::Finalize(const PeerMap<Scalar>& peer_partials) {
   if (!verify::VerifySm2SignatureMath(cfg_.public_keygen_data.public_key,
                                       cfg_.local_key_share.binding,
                                       cfg_.message, signature)) {
-    TECDSA_THROW_ARGUMENT("final SM2 signature verification failed");
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kOnline,
+                detection::EvidenceKind::kPartialSignature, cfg_.session_id,
+                cfg_.self_id, "final SM2 signature verification failed")};
   }
 
   signature_ = signature;
-  return *signature_;
+  return {.value = *signature_, .abort = std::nullopt};
 }
 
 }  // namespace tecdsa::sm2::sign

@@ -27,6 +27,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_sqr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/zid/zid.h"
@@ -106,10 +107,14 @@ class KeygenParty {
   std::vector<KeygenRound3Request> MakeRound3Requests(
       const PeerMap<KeygenRound2Broadcast>& peer_round2,
       const PeerMap<Scalar>& shares_for_self);
+  detection::DetectionResult<std::vector<KeygenRound3Response>>
+  TryMakeRound3Responses(const std::vector<KeygenRound3Request>& requests_for_self);
   std::vector<KeygenRound3Response> MakeRound3Responses(
       const std::vector<KeygenRound3Request>& requests_for_self);
   KeygenRound4Msg MakeRound4(
       const std::vector<KeygenRound3Response>& responses_for_self);
+  detection::DetectionResult<KeygenOutput> TryFinalize(
+      const PeerMap<KeygenRound4Msg>& peer_round4);
   KeygenOutput Finalize(const PeerMap<KeygenRound4Msg>& peer_round4);
 
  private:

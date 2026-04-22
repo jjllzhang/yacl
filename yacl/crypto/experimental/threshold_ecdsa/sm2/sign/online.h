@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/keygen/keygen.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/presign/offline.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/verify/verify.h"
@@ -46,6 +47,8 @@ class OnlineParty {
   const OnlineConfig& config() const;
 
   Scalar MakePartialSignature();
+  detection::DetectionResult<verify::Signature> TryFinalize(
+      const PeerMap<Scalar>& peer_partials);
   verify::Signature Finalize(const PeerMap<Scalar>& peer_partials);
 
  private:

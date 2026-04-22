@@ -22,6 +22,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/evidence.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
 
@@ -140,32 +141,62 @@ std::vector<Round2Request> OfflineParty::MakeRound2Requests(
 
 std::vector<Round2Response> OfflineParty::MakeRound2Responses(
     const std::vector<Round2Request>& requests_for_self) {
+  const auto result = TryMakeRound2Responses(requests_for_self);
+  if (!result.ok()) {
+    TECDSA_THROW_ARGUMENT(result.abort->reason);
+  }
+  return *result.value;
+}
+
+detection::DetectionResult<std::vector<Round2Response>>
+OfflineParty::TryMakeRound2Responses(
+    const std::vector<Round2Request>& requests_for_self) {
   if (round2_responses_.has_value()) {
-    return *round2_responses_;
+    return {.value = *round2_responses_, .abort = std::nullopt};
   }
   if (round2_requests_.empty()) {
     TECDSA_THROW_LOGIC(
         "MakeRound2Requests must be completed before MakeRound2Responses");
   }
 
-  RequireExactlyOneRequestPerPeer(requests_for_self, peers_, cfg_.self_id);
+  try {
+    RequireExactlyOneRequestPerPeer(requests_for_self, peers_, cfg_.self_id);
+  } catch (const std::exception& ex) {
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kOffline,
+                detection::EvidenceKind::kMtaProof, cfg_.session_id,
+                cfg_.self_id, ex.what())};
+  }
 
   std::vector<Round2Response> out;
   out.reserve(requests_for_self.size());
+  Scalar responder_sum = delta_responder_sum_;
   for (const auto& request : requests_for_self) {
-    const auto consume = delta_session_.ConsumeRequest(
-        request,
-        {.initiator_modulus_n =
-             cfg_.public_keygen_data.all_paillier_public.at(request.from).n,
-         .responder_aux = &cfg_.public_keygen_data.all_aux_rsa_params.at(cfg_.self_id),
-         .initiator_aux = &cfg_.public_keygen_data.all_aux_rsa_params.at(request.from),
-         .responder_secret = cfg_.local_key_share.z_i,
-         .public_witness_point = std::nullopt});
-    delta_responder_sum_ = delta_responder_sum_ + consume.responder_share;
-    out.push_back(consume.response);
+    try {
+      const auto consume = delta_session_.ConsumeRequest(
+          request,
+          {.initiator_modulus_n =
+               cfg_.public_keygen_data.all_paillier_public.at(request.from).n,
+           .responder_aux =
+               &cfg_.public_keygen_data.all_aux_rsa_params.at(cfg_.self_id),
+           .initiator_aux =
+               &cfg_.public_keygen_data.all_aux_rsa_params.at(request.from),
+           .responder_secret = cfg_.local_key_share.z_i,
+           .public_witness_point = std::nullopt});
+      responder_sum = responder_sum + consume.responder_share;
+      out.push_back(consume.response);
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kOffline,
+                  detection::EvidenceKind::kMtaProof, cfg_.session_id,
+                  cfg_.self_id, request.from, ex.what(), request.instance_id)};
+    }
   }
+  delta_responder_sum_ = responder_sum;
   round2_responses_ = out;
-  return *round2_responses_;
+  return {.value = *round2_responses_, .abort = std::nullopt};
 }
 
 Round3Msg OfflineParty::MakeRound3(
@@ -201,15 +232,32 @@ Round3Msg OfflineParty::MakeRound3(
 }
 
 OfflineState OfflineParty::Finalize(const PeerMap<Round3Msg>& peer_round3) {
+  const auto result = TryFinalize(peer_round3);
+  if (!result.ok()) {
+    TECDSA_THROW_ARGUMENT(result.abort->reason);
+  }
+  return *result.value;
+}
+
+detection::DetectionResult<OfflineState> OfflineParty::TryFinalize(
+    const PeerMap<Round3Msg>& peer_round3) {
   if (offline_.has_value()) {
-    return *offline_;
+    return {.value = *offline_, .abort = std::nullopt};
   }
   if (!round3_.has_value()) {
     TECDSA_THROW_LOGIC("MakeRound3 must be completed before Finalize");
   }
 
-  core::participant::RequireExactlyPeers(peer_round3, cfg_.participants,
-                                         cfg_.self_id, "peer_round3");
+  try {
+    core::participant::RequireExactlyPeers(peer_round3, cfg_.participants,
+                                           cfg_.self_id, "peer_round3");
+  } catch (const std::exception& ex) {
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kOffline,
+                detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                cfg_.self_id, ex.what())};
+  }
   std::vector<ECPoint> k_points;
   k_points.reserve(cfg_.participants.size());
   k_points.push_back(local_K_i_);
@@ -217,17 +265,47 @@ OfflineState OfflineParty::Finalize(const PeerMap<Round3Msg>& peer_round3) {
     const auto& msg = peer_round3.at(peer);
     const auto commitment_it = phase1_commitments_.find(peer);
     if (commitment_it == phase1_commitments_.end()) {
-      TECDSA_THROW_LOGIC("missing phase1 commitment for peer");
+      return {.value = std::nullopt,
+              .abort = detection::MakeUnattributedAbort(
+                  detection::AbortStage::kOffline,
+                  detection::EvidenceKind::kCommitment, cfg_.session_id,
+                  cfg_.self_id, "missing phase1 commitment for peer")};
     }
-    if (!core::commitment::VerifyCommitment(
-            core::DefaultSm2Suite(), kPhase1CommitDomain,
-            msg.K_i.ToCompressedBytes(), msg.randomness,
-            commitment_it->second)) {
-      TECDSA_THROW_ARGUMENT("SM2 offline nonce opening verification failed");
+    try {
+      if (!core::commitment::VerifyCommitment(
+              core::DefaultSm2Suite(), kPhase1CommitDomain,
+              msg.K_i.ToCompressedBytes(), msg.randomness,
+              commitment_it->second)) {
+        return {.value = std::nullopt,
+                .abort = detection::MakeIdentifiableAbort(
+                    detection::AbortStage::kOffline,
+                    detection::EvidenceKind::kCommitment, cfg_.session_id,
+                    cfg_.self_id, peer,
+                    "SM2 offline nonce opening verification failed")};
+      }
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kOffline,
+                  detection::EvidenceKind::kCommitment, cfg_.session_id,
+                  cfg_.self_id, peer, ex.what())};
     }
-    if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.K_i,
-                                    msg.k_proof)) {
-      TECDSA_THROW_ARGUMENT("SM2 offline nonce pi_group verification failed");
+    try {
+      if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.K_i,
+                                      msg.k_proof)) {
+        return {.value = std::nullopt,
+                .abort = detection::MakeIdentifiableAbort(
+                    detection::AbortStage::kOffline,
+                    detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                    cfg_.self_id, peer,
+                    "SM2 offline nonce pi_group verification failed")};
+      }
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kOffline,
+                  detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                  cfg_.self_id, peer, ex.what())};
     }
     k_points.push_back(msg.K_i);
   }
@@ -238,10 +316,15 @@ OfflineState OfflineParty::Finalize(const PeerMap<Round3Msg>& peer_round3) {
         .R = internal::SumPointsOrThrow(k_points),
     };
   } catch (const std::exception& ex) {
-    TECDSA_THROW(std::string("failed to finalize SM2 offline presign: ") +
-                 ex.what());
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kOffline,
+                detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                cfg_.self_id,
+                std::string("failed to finalize SM2 offline presign: ") +
+                    ex.what())};
   }
-  return *offline_;
+  return {.value = *offline_, .abort = std::nullopt};
 }
 
 }  // namespace tecdsa::sm2::presign
