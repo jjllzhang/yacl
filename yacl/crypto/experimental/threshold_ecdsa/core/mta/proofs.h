@@ -49,6 +49,8 @@ MtaProofContext BuildProofContext(const Bytes& session_id,
                                   const ThresholdSuite& suite,
                                   std::shared_ptr<const GroupContext> group);
 
+// Internal transport proof carried by PairwiseProductSession. Canonical
+// scheme-owned proofs live under ecdsa/proofs and sm2/proofs.
 struct A1RangeProof {
   BigInt z = BigInt(0);
   BigInt u = BigInt(0);
@@ -58,6 +60,8 @@ struct A1RangeProof {
   BigInt s2 = BigInt(0);
 };
 
+// Internal transport proof carried by PairwiseProductSession. Canonical
+// scheme-owned proofs live under ecdsa/proofs and sm2/proofs.
 struct A2MtAwcProof {
   ECPoint u;
   BigInt z = BigInt(0);
@@ -72,6 +76,8 @@ struct A2MtAwcProof {
   BigInt t2 = BigInt(0);
 };
 
+// Internal transport proof carried by PairwiseProductSession. Canonical
+// scheme-owned proofs live under ecdsa/proofs and sm2/proofs.
 struct A3MtAProof {
   BigInt z = BigInt(0);
   BigInt z2 = BigInt(0);

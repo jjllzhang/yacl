@@ -32,6 +32,8 @@ using PeerMap = std::unordered_map<PartyIndex, T>;
 using SchnorrProof = tecdsa::core::proof::SchnorrProof;
 using VRelationProof = tecdsa::ecdsa::sign::VRelationProof;
 
+// Compatibility wrapper that remains convertible to both the scheme-owned
+// ECDSA proof type and the legacy core transport proof type.
 struct A1RangeProof {
   tecdsa::ecdsa::proofs::BigInt z = tecdsa::ecdsa::proofs::BigInt(0);
   tecdsa::ecdsa::proofs::BigInt u = tecdsa::ecdsa::proofs::BigInt(0);
@@ -63,6 +65,8 @@ struct A1RangeProof {
   }
 };
 
+// Compatibility wrapper that remains convertible to both the scheme-owned
+// ECDSA proof type and the legacy core transport proof type.
 struct A2MtAwcProof {
   ECPoint u;
   tecdsa::ecdsa::proofs::BigInt z = tecdsa::ecdsa::proofs::BigInt(0);
@@ -109,6 +113,8 @@ struct A2MtAwcProof {
   }
 };
 
+// Compatibility wrapper that remains convertible to both the scheme-owned
+// ECDSA proof type and the legacy core transport proof type.
 struct A3MtAProof {
   tecdsa::ecdsa::proofs::BigInt z = tecdsa::ecdsa::proofs::BigInt(0);
   tecdsa::ecdsa::proofs::BigInt z2 = tecdsa::ecdsa::proofs::BigInt(0);

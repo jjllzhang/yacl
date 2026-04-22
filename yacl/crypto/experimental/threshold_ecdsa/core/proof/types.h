@@ -30,6 +30,8 @@ concept SchnorrProofLike =
       T{point, scalar};
     };
 
+// Generic substrate proof shared by multiple schemes. Canonical public proof
+// owners should live in the scheme layer, not in core::proof.
 struct SchnorrProof {
   ECPoint a;
   Scalar z;

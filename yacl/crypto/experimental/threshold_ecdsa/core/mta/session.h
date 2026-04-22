@@ -36,6 +36,8 @@ std::string BytesToKey(const Bytes& bytes);
 std::string MakeResponderRequestKey(PartyIndex initiator, MtaType type);
 size_t ExpectedPairwiseProductMessageCount(size_t peer_count);
 
+// ProofBackend binds scheme-specific exact proof implementations onto the
+// generic PairwiseProductSession transport interface.
 struct ProofBackend {
   std::function<A1RangeProof(const MtaProofContext&, const BigInt&,
                              const AuxRsaParams&, const BigInt&,

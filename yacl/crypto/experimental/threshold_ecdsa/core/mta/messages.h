@@ -30,6 +30,8 @@ inline bool RequiresPublicPoint(MtaType type) {
   return type == MtaType::kMtAwc;
 }
 
+// Internal transport object used by PairwiseProductSession. Scheme-owned public
+// message types live outside core and adapt to this structure at the boundary.
 struct PairwiseProductRequest {
   PartyIndex from = 0;
   PartyIndex to = 0;
@@ -39,6 +41,8 @@ struct PairwiseProductRequest {
   A1RangeProof a1_proof;
 };
 
+// Internal transport object used by PairwiseProductSession. Scheme-owned public
+// message types live outside core and adapt to this structure at the boundary.
 struct PairwiseProductResponse {
   PartyIndex from = 0;
   PartyIndex to = 0;
