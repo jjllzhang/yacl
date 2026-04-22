@@ -48,9 +48,12 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/random.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/transcript.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/adapters.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_affine.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_range.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/adapters.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_range.h"
@@ -580,6 +583,383 @@ void TestStage13MtaContextUsesExplicitSuite() {
          "Mta QPow5 must derive from the explicit group modulus");
 }
 
+void TestStageFExactProofAndMessageRoundTrips() {
+  using tecdsa::core::mta::A1RangeProof;
+  using tecdsa::core::mta::A2MtAwcProof;
+  using tecdsa::core::mta::A3MtAProof;
+  using tecdsa::core::mta::MtaType;
+  using tecdsa::core::mta::PairwiseProductRequest;
+  using tecdsa::core::mta::PairwiseProductResponse;
+
+  const auto sm2_group =
+      tecdsa::core::GroupContext::Create(CurveId::kSm2P256V1);
+
+  const tecdsa::ecdsa::proofs::A1RangeProof ecdsa_a1 = {
+      .z = BigInt(11),
+      .u = BigInt(12),
+      .w = BigInt(13),
+      .s = BigInt(14),
+      .s1 = BigInt(15),
+      .s2 = BigInt(16),
+  };
+  const A1RangeProof core_a1_from_ecdsa =
+      tecdsa::ecdsa::proofs::ToCoreA1RangeProof(ecdsa_a1);
+  const auto ecdsa_a1_roundtrip =
+      tecdsa::ecdsa::proofs::FromCoreA1RangeProof(core_a1_from_ecdsa);
+  Expect(ecdsa_a1_roundtrip.z == ecdsa_a1.z &&
+             ecdsa_a1_roundtrip.u == ecdsa_a1.u &&
+             ecdsa_a1_roundtrip.w == ecdsa_a1.w &&
+             ecdsa_a1_roundtrip.s == ecdsa_a1.s &&
+             ecdsa_a1_roundtrip.s1 == ecdsa_a1.s1 &&
+             ecdsa_a1_roundtrip.s2 == ecdsa_a1.s2,
+         "ecdsa A1 proof must round-trip through core transport");
+
+  const A2MtAwcProof core_a2 = {
+      .u = ECPoint::GeneratorMultiply(Scalar::FromUint64(17)),
+      .z = BigInt(18),
+      .z2 = BigInt(19),
+      .t = BigInt(20),
+      .v = BigInt(21),
+      .w = BigInt(22),
+      .s = BigInt(23),
+      .s1 = BigInt(24),
+      .s2 = BigInt(25),
+      .t1 = BigInt(26),
+      .t2 = BigInt(27),
+  };
+  const auto ecdsa_a2_from_core =
+      tecdsa::ecdsa::proofs::FromCoreA2MtAwcProof(core_a2);
+  const A2MtAwcProof core_a2_roundtrip =
+      tecdsa::ecdsa::proofs::ToCoreA2MtAwcProof(ecdsa_a2_from_core);
+  Expect(core_a2_roundtrip.u == core_a2.u && core_a2_roundtrip.z == core_a2.z &&
+             core_a2_roundtrip.z2 == core_a2.z2 &&
+             core_a2_roundtrip.t == core_a2.t &&
+             core_a2_roundtrip.v == core_a2.v &&
+             core_a2_roundtrip.w == core_a2.w &&
+             core_a2_roundtrip.s == core_a2.s &&
+             core_a2_roundtrip.s1 == core_a2.s1 &&
+             core_a2_roundtrip.s2 == core_a2.s2 &&
+             core_a2_roundtrip.t1 == core_a2.t1 &&
+             core_a2_roundtrip.t2 == core_a2.t2,
+         "ecdsa A2 proof must round-trip through scheme-owned type");
+
+  const tecdsa::ecdsa::proofs::A3MtAProof ecdsa_a3 = {
+      .z = BigInt(31),
+      .z2 = BigInt(32),
+      .t = BigInt(33),
+      .v = BigInt(34),
+      .w = BigInt(35),
+      .s = BigInt(36),
+      .s1 = BigInt(37),
+      .s2 = BigInt(38),
+      .t1 = BigInt(39),
+      .t2 = BigInt(40),
+  };
+  const auto ecdsa_a3_roundtrip = tecdsa::ecdsa::proofs::FromCoreA3MtAProof(
+      tecdsa::ecdsa::proofs::ToCoreA3MtAProof(ecdsa_a3));
+  Expect(ecdsa_a3_roundtrip.z == ecdsa_a3.z &&
+             ecdsa_a3_roundtrip.z2 == ecdsa_a3.z2 &&
+             ecdsa_a3_roundtrip.t == ecdsa_a3.t &&
+             ecdsa_a3_roundtrip.v == ecdsa_a3.v &&
+             ecdsa_a3_roundtrip.w == ecdsa_a3.w &&
+             ecdsa_a3_roundtrip.s == ecdsa_a3.s &&
+             ecdsa_a3_roundtrip.s1 == ecdsa_a3.s1 &&
+             ecdsa_a3_roundtrip.s2 == ecdsa_a3.s2 &&
+             ecdsa_a3_roundtrip.t1 == ecdsa_a3.t1 &&
+             ecdsa_a3_roundtrip.t2 == ecdsa_a3.t2,
+         "ecdsa A3 proof must round-trip through core transport");
+
+  const tecdsa::sm2::proofs::PiRangeProof pi_range = {
+      .z = BigInt(41),
+      .u = BigInt(42),
+      .w = BigInt(43),
+      .s = BigInt(44),
+      .s1 = BigInt(45),
+      .s2 = BigInt(46),
+  };
+  const auto pi_range_roundtrip = tecdsa::sm2::proofs::FromCorePiRangeProof(
+      tecdsa::sm2::proofs::ToCorePiRangeProof(pi_range));
+  Expect(pi_range_roundtrip.z == pi_range.z &&
+             pi_range_roundtrip.u == pi_range.u &&
+             pi_range_roundtrip.w == pi_range.w &&
+             pi_range_roundtrip.s == pi_range.s &&
+             pi_range_roundtrip.s1 == pi_range.s1 &&
+             pi_range_roundtrip.s2 == pi_range.s2,
+         "sm2 PiRange proof must round-trip through core transport");
+
+  const tecdsa::sm2::proofs::PiLinearGroupProof pi_linear_group = {
+      .u = ECPoint::GeneratorMultiply(Scalar::FromUint64(47, sm2_group)),
+      .z = BigInt(48),
+      .z2 = BigInt(49),
+      .t = BigInt(50),
+      .v = BigInt(51),
+      .w = BigInt(52),
+      .s = BigInt(53),
+      .s1 = BigInt(54),
+      .s2 = BigInt(55),
+      .t1 = BigInt(56),
+      .t2 = BigInt(57),
+  };
+  const auto pi_linear_group_roundtrip =
+      tecdsa::sm2::proofs::FromCorePiLinearGroupProof(
+          tecdsa::sm2::proofs::ToCorePiLinearGroupProof(pi_linear_group));
+  Expect(pi_linear_group_roundtrip.u == pi_linear_group.u &&
+             pi_linear_group_roundtrip.z == pi_linear_group.z &&
+             pi_linear_group_roundtrip.z2 == pi_linear_group.z2 &&
+             pi_linear_group_roundtrip.t == pi_linear_group.t &&
+             pi_linear_group_roundtrip.v == pi_linear_group.v &&
+             pi_linear_group_roundtrip.w == pi_linear_group.w &&
+             pi_linear_group_roundtrip.s == pi_linear_group.s &&
+             pi_linear_group_roundtrip.s1 == pi_linear_group.s1 &&
+             pi_linear_group_roundtrip.s2 == pi_linear_group.s2 &&
+             pi_linear_group_roundtrip.t1 == pi_linear_group.t1 &&
+             pi_linear_group_roundtrip.t2 == pi_linear_group.t2,
+         "sm2 PiLinearGroup proof must round-trip through core transport");
+
+  const A3MtAProof core_pi_linear = {
+      .z = BigInt(61),
+      .z2 = BigInt(62),
+      .t = BigInt(63),
+      .v = BigInt(64),
+      .w = BigInt(65),
+      .s = BigInt(66),
+      .s1 = BigInt(67),
+      .s2 = BigInt(68),
+      .t1 = BigInt(69),
+      .t2 = BigInt(70),
+  };
+  const auto core_pi_linear_roundtrip = tecdsa::sm2::proofs::ToCorePiLinearProof(
+      tecdsa::sm2::proofs::FromCorePiLinearProof(core_pi_linear));
+  Expect(core_pi_linear_roundtrip.z == core_pi_linear.z &&
+             core_pi_linear_roundtrip.z2 == core_pi_linear.z2 &&
+             core_pi_linear_roundtrip.t == core_pi_linear.t &&
+             core_pi_linear_roundtrip.v == core_pi_linear.v &&
+             core_pi_linear_roundtrip.w == core_pi_linear.w &&
+             core_pi_linear_roundtrip.s == core_pi_linear.s &&
+             core_pi_linear_roundtrip.s1 == core_pi_linear.s1 &&
+             core_pi_linear_roundtrip.s2 == core_pi_linear.s2 &&
+             core_pi_linear_roundtrip.t1 == core_pi_linear.t1 &&
+             core_pi_linear_roundtrip.t2 == core_pi_linear.t2,
+         "sm2 PiLinear proof must round-trip through scheme-owned type");
+
+  const tecdsa::sm2::proofs::PiGroupProof pi_group = {
+      .a = ECPoint::GeneratorMultiply(Scalar::FromUint64(71, sm2_group)),
+      .z = Scalar::FromUint64(72, sm2_group),
+  };
+  const auto pi_group_roundtrip = tecdsa::sm2::proofs::FromCorePiGroupProof(
+      tecdsa::sm2::proofs::ToCorePiGroupProof(pi_group));
+  Expect(pi_group_roundtrip.a == pi_group.a &&
+             pi_group_roundtrip.z == pi_group.z,
+         "sm2 PiGroup proof must round-trip through generic Schnorr substrate");
+
+  const PairwiseProductRequest core_request = {
+      .from = 7,
+      .to = 9,
+      .type = MtaType::kMtAwc,
+      .instance_id = Bytes{0x01, 0x02, 0x03, 0x04},
+      .c1 = BigInt(73),
+      .a1_proof = {
+          .z = BigInt(74),
+          .u = BigInt(75),
+          .w = BigInt(76),
+          .s = BigInt(77),
+          .s1 = BigInt(78),
+          .s2 = BigInt(79),
+      },
+  };
+  Expect(tecdsa::core::mta::RequiresPublicPoint(core_request.type),
+         "stage F request fixture must exercise the MtAwc path");
+  const auto sm2_request = tecdsa::sm2::messages::FromCoreRequest(core_request);
+  Expect(sm2_request.from == core_request.from &&
+             sm2_request.to == core_request.to &&
+             sm2_request.type == core_request.type &&
+             sm2_request.instance_id == core_request.instance_id &&
+             sm2_request.c1 == core_request.c1 &&
+             sm2_request.a1_proof.z == core_request.a1_proof.z &&
+             sm2_request.a1_proof.u == core_request.a1_proof.u &&
+             sm2_request.a1_proof.w == core_request.a1_proof.w &&
+             sm2_request.a1_proof.s == core_request.a1_proof.s &&
+             sm2_request.a1_proof.s1 == core_request.a1_proof.s1 &&
+             sm2_request.a1_proof.s2 == core_request.a1_proof.s2,
+         "sm2 request adapter must preserve all request fields");
+  const auto core_request_roundtrip =
+      tecdsa::sm2::messages::ToCoreRequest(sm2_request);
+  Expect(core_request_roundtrip.from == core_request.from &&
+             core_request_roundtrip.to == core_request.to &&
+             core_request_roundtrip.type == core_request.type &&
+             core_request_roundtrip.instance_id == core_request.instance_id &&
+             core_request_roundtrip.c1 == core_request.c1 &&
+             core_request_roundtrip.a1_proof.z == core_request.a1_proof.z &&
+             core_request_roundtrip.a1_proof.u == core_request.a1_proof.u &&
+             core_request_roundtrip.a1_proof.w == core_request.a1_proof.w &&
+             core_request_roundtrip.a1_proof.s == core_request.a1_proof.s &&
+             core_request_roundtrip.a1_proof.s1 == core_request.a1_proof.s1 &&
+             core_request_roundtrip.a1_proof.s2 == core_request.a1_proof.s2,
+         "sm2 request must round-trip back to core transport");
+
+  const PairwiseProductResponse core_response = {
+      .from = 9,
+      .to = 7,
+      .type = MtaType::kMtAwc,
+      .instance_id = Bytes{0x05, 0x06, 0x07, 0x08},
+      .c2 = BigInt(80),
+      .a2_proof = A2MtAwcProof{
+          .u = ECPoint::GeneratorMultiply(Scalar::FromUint64(81, sm2_group)),
+          .z = BigInt(82),
+          .z2 = BigInt(83),
+          .t = BigInt(84),
+          .v = BigInt(85),
+          .w = BigInt(86),
+          .s = BigInt(87),
+          .s1 = BigInt(88),
+          .s2 = BigInt(89),
+          .t1 = BigInt(90),
+          .t2 = BigInt(91),
+      },
+      .a3_proof = A3MtAProof{
+          .z = BigInt(92),
+          .z2 = BigInt(93),
+          .t = BigInt(94),
+          .v = BigInt(95),
+          .w = BigInt(96),
+          .s = BigInt(97),
+          .s1 = BigInt(98),
+          .s2 = BigInt(99),
+          .t1 = BigInt(100),
+          .t2 = BigInt(101),
+      },
+  };
+  Expect(tecdsa::core::mta::RequiresPublicPoint(core_response.type),
+         "stage F response fixture must exercise the proof-bearing MtAwc path");
+  const auto sm2_response =
+      tecdsa::sm2::messages::FromCoreResponse(core_response);
+  Expect(sm2_response.from == core_response.from &&
+             sm2_response.to == core_response.to &&
+             sm2_response.type == core_response.type &&
+             sm2_response.instance_id == core_response.instance_id &&
+             sm2_response.c2 == core_response.c2 &&
+             sm2_response.a2_proof.has_value() &&
+             sm2_response.a3_proof.has_value() &&
+             sm2_response.a2_proof->u == core_response.a2_proof->u &&
+             sm2_response.a2_proof->z == core_response.a2_proof->z &&
+             sm2_response.a2_proof->z2 == core_response.a2_proof->z2 &&
+             sm2_response.a2_proof->t == core_response.a2_proof->t &&
+             sm2_response.a2_proof->v == core_response.a2_proof->v &&
+             sm2_response.a2_proof->w == core_response.a2_proof->w &&
+             sm2_response.a2_proof->s == core_response.a2_proof->s &&
+             sm2_response.a2_proof->s1 == core_response.a2_proof->s1 &&
+             sm2_response.a2_proof->s2 == core_response.a2_proof->s2 &&
+             sm2_response.a2_proof->t1 == core_response.a2_proof->t1 &&
+             sm2_response.a2_proof->t2 == core_response.a2_proof->t2 &&
+             sm2_response.a3_proof->z == core_response.a3_proof->z &&
+             sm2_response.a3_proof->z2 == core_response.a3_proof->z2 &&
+             sm2_response.a3_proof->t == core_response.a3_proof->t &&
+             sm2_response.a3_proof->v == core_response.a3_proof->v &&
+             sm2_response.a3_proof->w == core_response.a3_proof->w &&
+             sm2_response.a3_proof->s == core_response.a3_proof->s &&
+             sm2_response.a3_proof->s1 == core_response.a3_proof->s1 &&
+             sm2_response.a3_proof->s2 == core_response.a3_proof->s2 &&
+             sm2_response.a3_proof->t1 == core_response.a3_proof->t1 &&
+             sm2_response.a3_proof->t2 == core_response.a3_proof->t2,
+         "sm2 response adapter must preserve all proof-carrying fields");
+  const auto core_response_roundtrip =
+      tecdsa::sm2::messages::ToCoreResponse(sm2_response);
+  Expect(core_response_roundtrip.from == core_response.from &&
+             core_response_roundtrip.to == core_response.to &&
+             core_response_roundtrip.type == core_response.type &&
+             core_response_roundtrip.instance_id == core_response.instance_id &&
+             core_response_roundtrip.c2 == core_response.c2 &&
+             core_response_roundtrip.a2_proof.has_value() &&
+             core_response_roundtrip.a3_proof.has_value() &&
+             core_response_roundtrip.a2_proof->u == core_response.a2_proof->u &&
+             core_response_roundtrip.a2_proof->z ==
+                 core_response.a2_proof->z &&
+             core_response_roundtrip.a2_proof->z2 ==
+                 core_response.a2_proof->z2 &&
+             core_response_roundtrip.a2_proof->t ==
+                 core_response.a2_proof->t &&
+             core_response_roundtrip.a2_proof->v ==
+                 core_response.a2_proof->v &&
+             core_response_roundtrip.a2_proof->w ==
+                 core_response.a2_proof->w &&
+             core_response_roundtrip.a2_proof->s ==
+                 core_response.a2_proof->s &&
+             core_response_roundtrip.a2_proof->s1 ==
+                 core_response.a2_proof->s1 &&
+             core_response_roundtrip.a2_proof->s2 ==
+                 core_response.a2_proof->s2 &&
+             core_response_roundtrip.a2_proof->t1 ==
+                 core_response.a2_proof->t1 &&
+             core_response_roundtrip.a2_proof->t2 ==
+                 core_response.a2_proof->t2 &&
+             core_response_roundtrip.a3_proof->z ==
+                 core_response.a3_proof->z &&
+             core_response_roundtrip.a3_proof->z2 ==
+                 core_response.a3_proof->z2 &&
+             core_response_roundtrip.a3_proof->t ==
+                 core_response.a3_proof->t &&
+             core_response_roundtrip.a3_proof->v ==
+                 core_response.a3_proof->v &&
+             core_response_roundtrip.a3_proof->w ==
+                 core_response.a3_proof->w &&
+             core_response_roundtrip.a3_proof->s ==
+                 core_response.a3_proof->s &&
+             core_response_roundtrip.a3_proof->s1 ==
+                 core_response.a3_proof->s1 &&
+             core_response_roundtrip.a3_proof->s2 ==
+                 core_response.a3_proof->s2 &&
+             core_response_roundtrip.a3_proof->t1 ==
+                 core_response.a3_proof->t1 &&
+             core_response_roundtrip.a3_proof->t2 ==
+                 core_response.a3_proof->t2,
+         "sm2 response must round-trip back to core transport");
+
+  const PairwiseProductResponse core_response_without_optional_proofs = {
+      .from = 3,
+      .to = 4,
+      .type = MtaType::kMta,
+      .instance_id = Bytes{0x09, 0x0a},
+      .c2 = BigInt(102),
+      .a2_proof = std::nullopt,
+      .a3_proof = std::nullopt,
+  };
+  Expect(!tecdsa::core::mta::RequiresPublicPoint(
+             core_response_without_optional_proofs.type),
+         "stage F nullopt fixture must exercise the plain MtA path");
+  const auto sm2_response_without_optional_proofs =
+      tecdsa::sm2::messages::FromCoreResponse(
+          core_response_without_optional_proofs);
+  Expect(sm2_response_without_optional_proofs.from ==
+                 core_response_without_optional_proofs.from &&
+             sm2_response_without_optional_proofs.to ==
+                 core_response_without_optional_proofs.to &&
+             sm2_response_without_optional_proofs.type ==
+                 core_response_without_optional_proofs.type &&
+             sm2_response_without_optional_proofs.instance_id ==
+                 core_response_without_optional_proofs.instance_id &&
+             sm2_response_without_optional_proofs.c2 ==
+                 core_response_without_optional_proofs.c2 &&
+             !sm2_response_without_optional_proofs.a2_proof.has_value() &&
+             !sm2_response_without_optional_proofs.a3_proof.has_value(),
+         "sm2 response adapter must preserve the plain MtA envelope");
+  const auto core_response_without_optional_proofs_roundtrip =
+      tecdsa::sm2::messages::ToCoreResponse(
+          sm2_response_without_optional_proofs);
+  Expect(core_response_without_optional_proofs_roundtrip.from ==
+                 core_response_without_optional_proofs.from &&
+             core_response_without_optional_proofs_roundtrip.to ==
+                 core_response_without_optional_proofs.to &&
+             core_response_without_optional_proofs_roundtrip.type ==
+                 core_response_without_optional_proofs.type &&
+             core_response_without_optional_proofs_roundtrip.instance_id ==
+                 core_response_without_optional_proofs.instance_id &&
+             core_response_without_optional_proofs_roundtrip.c2 ==
+                 core_response_without_optional_proofs.c2 &&
+             !core_response_without_optional_proofs_roundtrip.a2_proof.has_value() &&
+             !core_response_without_optional_proofs_roundtrip.a3_proof.has_value(),
+         "sm2 response round-trip must preserve absent optional proofs");
+}
+
 void TestStage12ExplicitTranscriptAndCommitmentContext() {
   tecdsa::core::transcript::Transcript transcript(tecdsa::HashId::kSha512);
   transcript.append("alpha", Bytes{0x01, 0x02, 0x03});
@@ -888,6 +1268,7 @@ int main() {
     TestPaperAuxSetupGeneration();
     TestStage4MtaAndRelationHelpers();
     TestStage4Sm2ProofOwners();
+    TestStageFExactProofAndMessageRoundTrips();
     TestStage12ExplicitTranscriptAndCommitmentContext();
     TestStage13MtaContextUsesExplicitSuite();
     TestMpIntRoundTrip();
