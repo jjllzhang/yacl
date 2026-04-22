@@ -22,11 +22,12 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_sqr.h"
@@ -36,6 +37,9 @@ namespace tecdsa::sm2::keygen {
 
 template <typename T>
 using PeerMap = std::unordered_map<PartyIndex, T>;
+
+using AuxCorrectFormProof = core::paillier::AuxCorrectFormProof;
+using AuxRsaParams = core::paillier::AuxRsaParams;
 
 struct KeygenConfig {
   Bytes session_id;

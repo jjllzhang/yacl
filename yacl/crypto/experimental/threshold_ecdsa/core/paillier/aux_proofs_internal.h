@@ -29,9 +29,6 @@ namespace tecdsa::core::paillier_internal {
 using BigInt = paillier::BigInt;
 
 inline constexpr char kSquareFreeProofNameGmr98[] = "SquareFreeGMR98";
-inline constexpr char kAuxParamProofNameStrict[] =
-    "AuxParamStrictAlgebraic";
-
 inline constexpr size_t kStrictNonceLen = 32;
 inline constexpr size_t kMaxStrictNonceLen = 256;
 inline constexpr size_t kMaxStrictFieldLen = 8192;
@@ -44,15 +41,6 @@ struct SquareFreeGmr98Payload {
   Bytes nonce;
   uint32_t rounds = 0;
   std::vector<BigInt> roots;
-};
-
-struct AuxParamStrictPayload {
-  Bytes nonce;
-  BigInt c1;
-  BigInt c2;
-  BigInt t1;
-  BigInt t2;
-  BigInt z;
 };
 
 struct AuxRsaParamsBigInt {
@@ -72,22 +60,12 @@ bool IsPerfectSquare(const BigInt& value);
 
 AuxRsaParamsBigInt ToBigIntParams(const paillier::AuxRsaParams& params);
 
-Scalar BuildAuxParamStrictChallenge(const AuxRsaParamsBigInt& params,
-                                    const paillier::StrictProofVerifierContext& context,
-                                    std::span<const uint8_t> nonce,
-                                    const BigInt& c1, const BigInt& c2,
-                                    const BigInt& t1, const BigInt& t2);
-
 BigInt DeriveSquareFreeGmr98Challenge(
     const BigInt& modulus_n, const paillier::StrictProofVerifierContext& context,
     std::span<const uint8_t> nonce, uint32_t round_idx);
 
 Bytes EncodeSquareFreeGmr98Payload(const SquareFreeGmr98Payload& payload);
 SquareFreeGmr98Payload DecodeSquareFreeGmr98Payload(
-    std::span<const uint8_t> blob);
-
-Bytes EncodeAuxParamStrictPayload(const AuxParamStrictPayload& payload);
-AuxParamStrictPayload DecodeAuxParamStrictPayload(
     std::span<const uint8_t> blob);
 
 BigInt PickCoprimeDeterministic(const BigInt& modulus, const BigInt& seed);

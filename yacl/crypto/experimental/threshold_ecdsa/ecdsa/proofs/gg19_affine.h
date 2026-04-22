@@ -20,9 +20,11 @@
 
 namespace tecdsa::ecdsa::proofs {
 
+using BigInt = core::paillier::BigInt;
 using MtaProofContext = core::mta::MtaProofContext;
 using A2MtAwcProof = core::mta::A2MtAwcProof;
 using A3MtAProof = core::mta::A3MtAProof;
+using AuxRsaParams = core::paillier::AuxRsaParams;
 
 A2MtAwcProof ProveA2MtAwc(const MtaProofContext& ctx, const BigInt& n,
                           const AuxRsaParams& verifier_aux, const BigInt& c1,

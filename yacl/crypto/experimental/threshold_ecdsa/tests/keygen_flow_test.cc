@@ -15,7 +15,8 @@
 #include <iostream>
 #include <type_traits>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/keygen.h"
 #include "sign_flow_test_shared.h"
 
@@ -99,12 +100,12 @@ void AssertKeygenOutputsConsistent(const KeygenOutputs& outputs,
              "Paillier modulus must satisfy N > q^8");
 
       const auto proof_ctx = BuildProofContext(session_id, peer);
-      Expect(tecdsa::VerifySquareFreeProofGmr98(
+      Expect(tecdsa::core::paillier::VerifySquareFreeProofGmr98(
                  current.public_keygen_data.all_paillier_public.at(peer).n,
                  current.public_keygen_data.all_square_free_proofs.at(peer),
                  proof_ctx),
              "square-free proof must verify");
-      Expect(tecdsa::VerifyAuxCorrectFormProof(
+      Expect(tecdsa::core::paillier::VerifyAuxCorrectFormProof(
                  current.public_keygen_data.all_aux_rsa_params.at(peer),
                  current.public_keygen_data.all_aux_param_proofs.at(peer),
                  proof_ctx),

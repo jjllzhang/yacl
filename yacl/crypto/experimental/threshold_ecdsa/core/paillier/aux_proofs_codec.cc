@@ -77,33 +77,4 @@ SquareFreeGmr98Payload DecodeSquareFreeGmr98Payload(
   return payload;
 }
 
-Bytes EncodeAuxParamStrictPayload(const AuxParamStrictPayload& payload) {
-  Bytes out;
-  encoding::AppendSizedField(payload.nonce, &out);
-  AppendMpIntField(payload.c1, &out);
-  AppendMpIntField(payload.c2, &out);
-  AppendMpIntField(payload.t1, &out);
-  AppendMpIntField(payload.t2, &out);
-  AppendMpIntField(payload.z, &out);
-  return out;
-}
-
-AuxParamStrictPayload DecodeAuxParamStrictPayload(
-    std::span<const uint8_t> blob) {
-  size_t offset = 0;
-  AuxParamStrictPayload payload;
-  payload.nonce =
-      encoding::ReadSizedField(blob, &offset, kMaxStrictNonceLen,
-                               "aux-param nonce");
-  payload.c1 = ReadMpIntField(blob, &offset, "aux-param c1");
-  payload.c2 = ReadMpIntField(blob, &offset, "aux-param c2");
-  payload.t1 = ReadMpIntField(blob, &offset, "aux-param t1");
-  payload.t2 = ReadMpIntField(blob, &offset, "aux-param t2");
-  payload.z = ReadMpIntField(blob, &offset, "aux-param z");
-  if (offset != blob.size()) {
-    TECDSA_THROW_ARGUMENT("aux-param proof payload has trailing bytes");
-  }
-  return payload;
-}
-
 }  // namespace tecdsa::core::paillier_internal

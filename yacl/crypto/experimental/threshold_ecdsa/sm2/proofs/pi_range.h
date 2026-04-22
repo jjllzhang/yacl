@@ -18,8 +18,10 @@
 
 namespace tecdsa::sm2::proofs {
 
+using BigInt = core::paillier::BigInt;
 using MtaProofContext = core::mta::MtaProofContext;
 using PiRangeProof = core::mta::A1RangeProof;
+using AuxRsaParams = core::paillier::AuxRsaParams;
 
 PiRangeProof ProvePiRange(const MtaProofContext& ctx, const BigInt& n,
                           const AuxRsaParams& verifier_aux, const BigInt& c,

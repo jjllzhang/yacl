@@ -155,35 +155,6 @@ AuxRsaParamsBigInt ToBigIntParams(const paillier::AuxRsaParams& params) {
   };
 }
 
-Scalar BuildAuxParamStrictChallenge(const AuxRsaParamsBigInt& params,
-                                    const paillier::StrictProofVerifierContext& context,
-                                    std::span<const uint8_t> nonce,
-                                    const BigInt& c1, const BigInt& c2,
-                                    const BigInt& t1, const BigInt& t2) {
-  transcript::Transcript transcript(context.transcript_hash);
-  const std::string proof_id = BuildProofId(context, kAuxParamProofNameStrict);
-  transcript.append_proof_id(proof_id);
-  AppendVerifierContext(&transcript, context);
-  const Bytes n_tilde_bytes = encoding::EncodeMpInt(params.n_tilde);
-  const Bytes h1_bytes = encoding::EncodeMpInt(params.h1);
-  const Bytes h2_bytes = encoding::EncodeMpInt(params.h2);
-  const Bytes c1_bytes = encoding::EncodeMpInt(c1);
-  const Bytes c2_bytes = encoding::EncodeMpInt(c2);
-  const Bytes t1_bytes = encoding::EncodeMpInt(t1);
-  const Bytes t2_bytes = encoding::EncodeMpInt(t2);
-  transcript.append_fields({
-      transcript::TranscriptFieldRef{.label = "Ntilde", .data = n_tilde_bytes},
-      transcript::TranscriptFieldRef{.label = "h1", .data = h1_bytes},
-      transcript::TranscriptFieldRef{.label = "h2", .data = h2_bytes},
-      transcript::TranscriptFieldRef{.label = "nonce", .data = nonce},
-      transcript::TranscriptFieldRef{.label = "c1", .data = c1_bytes},
-      transcript::TranscriptFieldRef{.label = "c2", .data = c2_bytes},
-      transcript::TranscriptFieldRef{.label = "t1", .data = t1_bytes},
-      transcript::TranscriptFieldRef{.label = "t2", .data = t2_bytes},
-  });
-  return transcript.challenge_scalar(context.challenge_group);
-}
-
 BigInt DeriveSquareFreeGmr98Challenge(
     const BigInt& modulus_n, const paillier::StrictProofVerifierContext& context,
     std::span<const uint8_t> nonce, uint32_t round_idx) {

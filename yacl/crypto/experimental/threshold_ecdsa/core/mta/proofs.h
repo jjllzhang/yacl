@@ -20,12 +20,15 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
 
 namespace tecdsa::core::mta {
+
+using BigInt = core::paillier::BigInt;
+using AuxRsaParams = core::paillier::AuxRsaParams;
 
 inline constexpr size_t kMtaInstanceIdLen = 16;
 

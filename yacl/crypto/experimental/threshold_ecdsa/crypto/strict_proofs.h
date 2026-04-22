@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
@@ -22,11 +23,12 @@
 
 namespace tecdsa {
 
+// Deprecated compatibility facade for legacy includes. New code should
+// include core/paillier owners directly.
 using BigInt = core::paillier::BigInt;
 using StrictProofVerifierContext = core::paillier::StrictProofVerifierContext;
 using AuxRsaParams = core::paillier::AuxRsaParams;
 using SquareFreeProof = core::paillier::SquareFreeProof;
-using AuxRsaParamProof = core::paillier::AuxRsaParamProof;
 using AuxCorrectFormProof = core::paillier::AuxCorrectFormProof;
 using PiModProof = core::paillier::PiModProof;
 using PiPrmProof = core::paillier::PiPrmProof;
@@ -34,11 +36,8 @@ using PaperAuxSetupBundle = core::paillier::PaperAuxSetupBundle;
 using PaperAuxSetupWitness = core::paillier::PaperAuxSetupWitness;
 using core::paillier::BuildAuxCorrectFormProof;
 using core::paillier::BuildSquareFreeProofGmr98;
-using core::paillier::DecodeAuxRsaParamProof;
 using core::paillier::DecodeSquareFreeProof;
-using core::paillier::EncodeAuxRsaParamProof;
 using core::paillier::EncodeSquareFreeProof;
-using core::paillier::GenerateAuxRsaParams;
 using core::paillier::GeneratePaperAuxSetup;
 using core::paillier::IsLikelySquareFreeModulus;
 using core::paillier::IsZnStarElement;

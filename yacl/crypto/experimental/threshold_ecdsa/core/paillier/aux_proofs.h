@@ -31,10 +31,6 @@ struct SquareFreeProof {
   Bytes blob;
 };
 
-struct AuxRsaParamProof {
-  Bytes blob;
-};
-
 bool IsZnStarElement(const BigInt& value, const BigInt& modulus);
 bool ValidateAuxRsaParams(const AuxRsaParams& params);
 bool IsLikelySquareFreeModulus(const BigInt& modulus_n);
@@ -42,10 +38,6 @@ bool IsLikelySquareFreeModulus(const BigInt& modulus_n);
 Bytes EncodeSquareFreeProof(const SquareFreeProof& proof);
 SquareFreeProof DecodeSquareFreeProof(std::span<const uint8_t> encoded,
                                       size_t max_len = 16384);
-
-Bytes EncodeAuxRsaParamProof(const AuxRsaParamProof& proof);
-AuxRsaParamProof DecodeAuxRsaParamProof(std::span<const uint8_t> encoded,
-                                        size_t max_len = 4096);
 
 AuxRsaParams GenerateAuxRsaParams(uint32_t modulus_bits, PartyIndex party_id);
 
@@ -55,11 +47,5 @@ SquareFreeProof BuildSquareFreeProofGmr98(
 bool VerifySquareFreeProofGmr98(const BigInt& modulus_n,
                                 const SquareFreeProof& proof,
                                 const StrictProofVerifierContext& context);
-
-AuxRsaParamProof BuildAuxRsaParamProofStrict(
-    const AuxRsaParams& params, const StrictProofVerifierContext& context);
-bool VerifyAuxRsaParamProofStrict(
-    const AuxRsaParams& params, const AuxRsaParamProof& proof,
-    const StrictProofVerifierContext& context);
 
 }  // namespace tecdsa::core::paillier

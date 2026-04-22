@@ -98,7 +98,7 @@ KeygenOutputs RunKeygenAndCollectResults(uint32_t n, uint32_t t,
                                          const Bytes& session_id);
 
 SignFixture BuildSignFixture(const std::vector<PartyIndex>& signers);
-tecdsa::StrictProofVerifierContext BuildKeygenProofContext(
+tecdsa::core::paillier::StrictProofVerifierContext BuildKeygenProofContext(
     const Bytes& keygen_session_id, PartyIndex prover_id);
 
 std::vector<SignConfig> BuildSignConfigs(const SignFixture& fixture,

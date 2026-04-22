@@ -20,16 +20,21 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
 
 namespace tecdsa::ecdsa::keygen {
 
 template <typename T>
 using PeerMap = std::unordered_map<PartyIndex, T>;
+
+using AuxCorrectFormProof = core::paillier::AuxCorrectFormProof;
+using AuxRsaParams = core::paillier::AuxRsaParams;
+using SquareFreeProof = core::paillier::SquareFreeProof;
 
 struct KeygenRound1Msg {
   Bytes commitment;

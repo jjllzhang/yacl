@@ -37,7 +37,6 @@ TSIG_ECDSA_SRCS = glob([
     "ecdsa/**/*.cc",
 ]) + [
     "protocol/proto_common.cc",
-    "protocol/proto_sign_internal.cc",
     "crypto/ecdsa_verify.cc",
     "protocol/keygen.cc",
     "protocol/sign.cc",
@@ -50,7 +49,6 @@ TSIG_ECDSA_HDRS = glob([
     "protocol/messages.h",
     "protocol/keygen.h",
     "protocol/proto_common.h",
-    "protocol/proto_sign_internal.h",
     "protocol/sign.h",
     "protocol/types.h",
 ]

@@ -14,13 +14,17 @@
 
 #pragma once
 
-#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::sm2::proofs {
 
 using BigInt = Scalar::BigInt;
-using PiSqrProof = core::paillier::SquareFreeProof;
+
+struct PiSqrProof {
+  Bytes blob;
+};
 
 PiSqrProof BuildPiSqrProof(
     const BigInt& modulus_n, const BigInt& lambda_n,

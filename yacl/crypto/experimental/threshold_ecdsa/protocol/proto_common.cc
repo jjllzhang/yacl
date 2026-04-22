@@ -37,10 +37,9 @@ Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
   return core::vss::EvaluatePolynomialAt(coefficients, party_id);
 }
 
-tecdsa::StrictProofVerifierContext BuildProofContext(const Bytes& session_id,
-                                                     PartyIndex prover_id,
-                                                     std::optional<PartyIndex>
-                                                         verifier_id) {
+core::paillier::StrictProofVerifierContext BuildProofContext(
+    const Bytes& session_id, PartyIndex prover_id,
+    std::optional<PartyIndex> verifier_id) {
   return core::paillier::BuildProofContext(session_id, prover_id,
                                            core::DefaultEcdsaSuite(),
                                            core::DefaultGroupContext(),
@@ -60,8 +59,8 @@ bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                                          prover_id, statement, proof);
 }
 
-const tecdsa::BigInt& MinPaillierModulusQ8() {
-  static const tecdsa::BigInt kMin =
+const core::paillier::BigInt& MinPaillierModulusQ8() {
+  static const core::paillier::BigInt kMin =
       core::paillier::MinPaillierModulusQ8(core::DefaultGroupContext());
   return kMin;
 }

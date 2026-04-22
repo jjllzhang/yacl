@@ -171,9 +171,9 @@ SignFixture BuildSignFixture(const std::vector<PartyIndex>& signers) {
   return fixture;
 }
 
-tecdsa::StrictProofVerifierContext BuildKeygenProofContext(
+tecdsa::core::paillier::StrictProofVerifierContext BuildKeygenProofContext(
     const Bytes& keygen_session_id, PartyIndex prover_id) {
-  return tecdsa::BuildProofContext(keygen_session_id, prover_id);
+  return tecdsa::proto::BuildProofContext(keygen_session_id, prover_id);
 }
 
 std::vector<SignConfig> BuildSignConfigs(const SignFixture& fixture,

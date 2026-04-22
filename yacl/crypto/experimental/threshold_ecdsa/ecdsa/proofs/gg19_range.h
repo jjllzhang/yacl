@@ -18,8 +18,10 @@
 
 namespace tecdsa::ecdsa::proofs {
 
+using BigInt = core::paillier::BigInt;
 using MtaProofContext = core::mta::MtaProofContext;
 using A1RangeProof = core::mta::A1RangeProof;
+using AuxRsaParams = core::paillier::AuxRsaParams;
 
 A1RangeProof ProveA1Range(const MtaProofContext& ctx, const BigInt& n,
                           const AuxRsaParams& verifier_aux, const BigInt& c,

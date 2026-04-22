@@ -52,18 +52,6 @@ SquareFreeProof DecodeSquareFreeProof(std::span<const uint8_t> encoded,
   return SquareFreeProof{.blob = Bytes(encoded.begin(), encoded.end())};
 }
 
-Bytes EncodeAuxRsaParamProof(const AuxRsaParamProof& proof) {
-  return proof.blob;
-}
-
-AuxRsaParamProof DecodeAuxRsaParamProof(std::span<const uint8_t> encoded,
-                                        size_t max_len) {
-  if (encoded.size() > max_len) {
-    TECDSA_THROW_ARGUMENT("aux-param proof blob exceeds maximum length");
-  }
-  return AuxRsaParamProof{.blob = Bytes(encoded.begin(), encoded.end())};
-}
-
 bool IsLikelySquareFreeModulus(const BigInt& modulus_n) {
   if (modulus_n <= 2 || modulus_n.IsEven() || spi::IsPerfectSquare(modulus_n)) {
     return false;
@@ -222,103 +210,6 @@ bool VerifySquareFreeProofGmr98(const BigInt& modulus_n,
     }
   }
   return true;
-}
-
-AuxRsaParamProof BuildAuxRsaParamProofStrict(
-    const AuxRsaParams& params, const StrictProofVerifierContext& context) {
-  if (!ValidateAuxRsaParams(params)) {
-    TECDSA_THROW_ARGUMENT(
-        "cannot build aux param proof from invalid parameters");
-  }
-  if (context.challenge_group == nullptr) {
-    TECDSA_THROW_ARGUMENT(
-        "aux strict proof requires an explicit challenge group");
-  }
-  const spi::AuxRsaParamsBigInt params_big = spi::ToBigIntParams(params);
-  if (!IsLikelySquareFreeModulus(params_big.n_tilde)) {
-    TECDSA_THROW_ARGUMENT(
-        "aux strict proof requires likely square-free Ntilde");
-  }
-
-  BigInt alpha;
-  do {
-    alpha = spi::RandomBelow(context.challenge_group->order());
-  } while (alpha == 0);
-  BigInt r;
-  do {
-    r = spi::RandomBelow(context.challenge_group->order());
-  } while (r == 0);
-
-  const BigInt c1 = spi::PowMod(params_big.h1, alpha, params_big.n_tilde);
-  const BigInt c2 = spi::PowMod(params_big.h2, alpha, params_big.n_tilde);
-  const BigInt t1 = spi::PowMod(params_big.h1, r, params_big.n_tilde);
-  const BigInt t2 = spi::PowMod(params_big.h2, r, params_big.n_tilde);
-  const Bytes nonce = Csprng::RandomBytes(spi::kStrictNonceLen);
-  const BigInt e = spi::BuildAuxParamStrictChallenge(params_big, context, nonce,
-                                                     c1, c2, t1, t2)
-                       .mp_value();
-  const BigInt z = r + (e * alpha);
-
-  return AuxRsaParamProof{
-      .blob = spi::EncodeAuxParamStrictPayload(spi::AuxParamStrictPayload{
-          .nonce = nonce,
-          .c1 = c1,
-          .c2 = c2,
-          .t1 = t1,
-          .t2 = t2,
-          .z = z,
-      }),
-  };
-}
-
-bool VerifyAuxRsaParamProofStrict(const AuxRsaParams& params,
-                                  const AuxRsaParamProof& proof,
-                                  const StrictProofVerifierContext& context) {
-  if (!ValidateAuxRsaParams(params)) {
-    return false;
-  }
-  if (context.challenge_group == nullptr) {
-    return false;
-  }
-  const spi::AuxRsaParamsBigInt params_big = spi::ToBigIntParams(params);
-  if (!IsLikelySquareFreeModulus(params_big.n_tilde) || proof.blob.empty()) {
-    return false;
-  }
-
-  spi::AuxParamStrictPayload payload;
-  try {
-    payload = spi::DecodeAuxParamStrictPayload(proof.blob);
-  } catch (const std::exception&) {
-    return false;
-  }
-  if (payload.nonce.size() != spi::kStrictNonceLen || payload.z < 0) {
-    return false;
-  }
-  if (!IsZnStarElement(payload.c1, params_big.n_tilde) ||
-      !IsZnStarElement(payload.c2, params_big.n_tilde) ||
-      !IsZnStarElement(payload.t1, params_big.n_tilde) ||
-      !IsZnStarElement(payload.t2, params_big.n_tilde)) {
-    return false;
-  }
-
-  const BigInt e = spi::BuildAuxParamStrictChallenge(
-                       params_big, context, payload.nonce, payload.c1,
-                       payload.c2, payload.t1, payload.t2)
-                       .mp_value();
-
-  const BigInt lhs1 = spi::PowMod(params_big.h1, payload.z, params_big.n_tilde);
-  const BigInt rhs1 =
-      spi::MulMod(payload.t1, spi::PowMod(payload.c1, e, params_big.n_tilde),
-                  params_big.n_tilde);
-  if (lhs1 != rhs1) {
-    return false;
-  }
-
-  const BigInt lhs2 = spi::PowMod(params_big.h2, payload.z, params_big.n_tilde);
-  const BigInt rhs2 =
-      spi::MulMod(payload.t2, spi::PowMod(payload.c2, e, params_big.n_tilde),
-                  params_big.n_tilde);
-  return lhs2 == rhs2;
 }
 
 }  // namespace tecdsa::core::paillier

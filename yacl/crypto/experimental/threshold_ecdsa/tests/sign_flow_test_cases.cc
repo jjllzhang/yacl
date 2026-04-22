@@ -21,7 +21,6 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ecdsa_verify.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
 
 namespace tecdsa::sign_flow_test {
 namespace {

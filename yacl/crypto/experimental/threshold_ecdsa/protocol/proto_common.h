@@ -21,13 +21,13 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/strict_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
 
 namespace tecdsa::proto {
@@ -56,11 +56,9 @@ Scalar RandomNonZeroScalar();
 Scalar EvaluatePolynomialAt(const std::vector<Scalar>& coefficients,
                             PartyIndex party_id);
 
-tecdsa::StrictProofVerifierContext BuildProofContext(const Bytes& session_id,
-                                                     PartyIndex prover_id,
-                                                     std::optional<PartyIndex>
-                                                         verifier_id =
-                                                             std::nullopt);
+core::paillier::StrictProofVerifierContext BuildProofContext(
+    const Bytes& session_id, PartyIndex prover_id,
+    std::optional<PartyIndex> verifier_id = std::nullopt);
 
 SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,
@@ -68,7 +66,7 @@ SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
 bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                         const ECPoint& statement, const SchnorrProof& proof);
 
-const tecdsa::BigInt& MinPaillierModulusQ8();
+const core::paillier::BigInt& MinPaillierModulusQ8();
 void ValidatePaillierPublicKeyOrThrow(const tecdsa::PaillierPublicKey& pub);
 
 std::unordered_map<PartyIndex, Scalar> ComputeLagrangeAtZero(
