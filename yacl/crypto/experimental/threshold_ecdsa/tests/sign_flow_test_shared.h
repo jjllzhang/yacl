@@ -146,6 +146,8 @@ PeerMap<Signature> FinalizeSignatures(SignPartyMap* parties,
 void TestStage4SignConstructorRejectsSmallPaillierModulus();
 void TestStage6SignConstructorRejectsMissingKeygenProofArtifacts();
 void TestStage6SignConstructorRejectsInvalidKeygenProofArtifacts();
+void TestStage6SignConstructorRejectsSignerCountMismatch();
+void TestStage6FinalizePreservesRawHighS();
 void TestStage6ProtocolSignCompatibilityAlias();
 void TestStage6MalformedPhase2InitProofPayloadAbortsResponder();
 void TestStage6MalformedPhase2ResponseProofPayloadAbortsInitiator();

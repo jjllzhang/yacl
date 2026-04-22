@@ -20,21 +20,36 @@ namespace tecdsa::sm2::testcases {
 
 using tecdsa::Bytes;
 using tecdsa::PartyIndex;
+using tecdsa::sm2::test::BuildOfflineParties;
 using tecdsa::sm2::test::BuildParticipants;
 using tecdsa::sm2::test::Expect;
+using tecdsa::sm2::test::ExpectThrow;
 using tecdsa::sm2::test::RunKeygen;
 using tecdsa::sm2::test::RunOffline;
 
 void RunOfflinePresignTests() {
   const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
   const auto participants = BuildParticipants(3);
+  const std::vector<PartyIndex> signers = {1, 2};
   const auto keygen_outputs =
       RunKeygen(/*n=*/3, /*t=*/1, Bytes{0x82, 0x01}, signer_id);
-  const auto offline_states =
-      RunOffline(participants, keygen_outputs, Bytes{0x82, 0x02});
-  const auto& baseline = offline_states.at(participants.front());
+  ExpectThrow(
+      [&]() {
+        (void)BuildOfflineParties(participants, keygen_outputs, Bytes{0x82, 0x02});
+      },
+      "SM2 offline must reject signer sets larger than threshold + 1");
+  ExpectThrow(
+      [&]() {
+        (void)BuildOfflineParties(std::vector<PartyIndex>{1}, keygen_outputs,
+                                  Bytes{0x82, 0x03});
+      },
+      "SM2 offline must reject signer sets smaller than threshold + 1");
 
-  for (PartyIndex party : participants) {
+  const auto offline_states =
+      RunOffline(signers, keygen_outputs, Bytes{0x82, 0x04});
+  const auto& baseline = offline_states.at(signers.front());
+
+  for (PartyIndex party : signers) {
     const auto& state = offline_states.at(party);
     Expect(state.R == baseline.R,
            "all SM2 parties must derive the same offline R");

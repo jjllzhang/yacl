@@ -14,6 +14,7 @@
 
 #include "sign_flow_test_shared.h"
 
+#include <stdexcept>
 #include <span>
 #include <type_traits>
 
@@ -155,6 +156,67 @@ void TestStage6SignConstructorRejectsInvalidKeygenProofArtifacts() {
       0x01;
   ExpectThrow([&]() { (void)SignParty(std::move(bad_aux_cfg)); },
               "SignParty must reject invalid aux keygen proof");
+}
+
+void TestStage6SignConstructorRejectsSignerCountMismatch() {
+  const auto keygen_results =
+      RunKeygenAndCollectResults(/*n=*/3, /*t=*/1, Bytes{0xD7, 0x03, 0x01});
+
+  {
+    const SignFixture fixture = BuildSignFixture({1, 2, 3});
+    std::vector<SignConfig> configs =
+        BuildSignConfigs(fixture, keygen_results, Bytes{0xE7, 0x02, 0x01},
+                         Bytes{0xD7, 0x03, 0x01});
+    ExpectThrow([&]() { (void)SignParty(std::move(configs.front())); },
+                "SignParty must reject signer sets larger than threshold + 1");
+  }
+
+  {
+    const SignFixture fixture = BuildSignFixture({1});
+    std::vector<SignConfig> configs =
+        BuildSignConfigs(fixture, keygen_results, Bytes{0xE7, 0x02, 0x02},
+                         Bytes{0xD7, 0x03, 0x01});
+    ExpectThrow([&]() { (void)SignParty(std::move(configs.front())); },
+                "SignParty must reject signer sets smaller than threshold + 1");
+  }
+}
+
+void TestStage6FinalizePreservesRawHighS() {
+  const auto keygen_results =
+      RunKeygenAndCollectResults(/*n=*/3, /*t=*/1, Bytes{0xD7, 0x03, 0x02});
+  const std::vector<PartyIndex> signers = {1, 2};
+  const SignFixture fixture = BuildSignFixture(signers);
+
+  for (uint8_t attempt = 0; attempt < 32; ++attempt) {
+    auto parties = BuildDefaultSignParties(
+        keygen_results, Bytes{0xD7, 0x03, 0x02},
+        Bytes{0xE7, 0x02, static_cast<uint8_t>(0x10 + attempt)});
+    SignRoundState state;
+    RunToCompletion(&parties, signers, &state);
+    const auto signatures = FinalizeSignatures(&parties, signers, state.round5e);
+    const Signature& signature = signatures.at(1);
+
+    Scalar raw_s = state.round5e.at(signers.front());
+    for (size_t i = 1; i < signers.size(); ++i) {
+      raw_s = raw_s + state.round5e.at(signers[i]);
+    }
+    if (!tecdsa::ecdsa::verify::IsHighScalar(raw_s)) {
+      continue;
+    }
+
+    Expect(signature.s == raw_s,
+           "Finalize must preserve the raw high-s scalar in strict paper mode");
+    Expect(tecdsa::ecdsa::verify::VerifyEcdsaSignatureMath(
+               keygen_results.at(1).public_keygen_data.y,
+               std::span<const uint8_t>(fixture.msg32.data(),
+                                        fixture.msg32.size()),
+               signature.r, signature.s),
+           "raw high-s signature must remain verifiable");
+    return;
+  }
+
+  throw std::runtime_error(
+      "Test failed: unable to observe a high raw s in 32 signing attempts");
 }
 
 void TestStage6ProtocolSignCompatibilityAlias() {

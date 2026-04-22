@@ -317,6 +317,7 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound3Msg>& peer_round3) 
 
   PublicKeygenData public_data;
   public_data.y = aggregated_y_;
+  public_data.threshold = cfg_.threshold;
   public_data.all_paillier_public = all_paillier_public_;
   public_data.all_aux_rsa_params = all_aux_rsa_params_;
   public_data.all_aux_param_proofs = all_aux_param_proofs_;

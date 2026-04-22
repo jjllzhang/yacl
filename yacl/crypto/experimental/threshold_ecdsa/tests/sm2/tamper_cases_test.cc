@@ -120,21 +120,21 @@ void TestTamperedKeygenGammaProofAbortsFinalize() {
 
 void TestTamperedOfflineNonceProofAbortsFinalize() {
   const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
-  const auto participants = BuildParticipants(3);
+  const std::vector<PartyIndex> signers = {1, 2};
   const auto keygen_outputs =
       RunKeygen(/*n=*/3, /*t=*/1, Bytes{0x84, 0x02}, signer_id);
   auto parties =
-      BuildOfflineParties(participants, keygen_outputs, Bytes{0x84, 0x03});
+      BuildOfflineParties(signers, keygen_outputs, Bytes{0x84, 0x03});
 
   tecdsa::sm2::presign::PeerMap<tecdsa::sm2::presign::Round1Msg> round1;
-  for (PartyIndex party : participants) {
+  for (PartyIndex party : signers) {
     round1.emplace(party, parties.at(party).MakeRound1());
   }
 
   std::vector<tecdsa::sm2::presign::Round2Request> all_requests;
-  for (PartyIndex party : participants) {
+  for (PartyIndex party : signers) {
     const auto requests = parties.at(party).MakeRound2Requests(
-        BuildPeerMapFor(participants, party, round1));
+        BuildPeerMapFor(signers, party, round1));
     all_requests.insert(all_requests.end(), requests.begin(), requests.end());
   }
 
@@ -144,7 +144,7 @@ void TestTamperedOfflineNonceProofAbortsFinalize() {
     grouped_requests[request.to].push_back(request);
   }
   std::vector<tecdsa::sm2::presign::Round2Response> all_responses;
-  for (PartyIndex party : participants) {
+  for (PartyIndex party : signers) {
     const auto responses =
         parties.at(party).MakeRound2Responses(grouped_requests.at(party));
     all_responses.insert(all_responses.end(), responses.begin(), responses.end());
@@ -157,7 +157,7 @@ void TestTamperedOfflineNonceProofAbortsFinalize() {
   }
 
   tecdsa::sm2::presign::PeerMap<Round3Msg> round3;
-  for (PartyIndex party : participants) {
+  for (PartyIndex party : signers) {
     round3.emplace(party, parties.at(party).MakeRound3(grouped_responses.at(party)));
   }
   round3.at(1).k_proof.z =
@@ -165,7 +165,7 @@ void TestTamperedOfflineNonceProofAbortsFinalize() {
       tecdsa::Scalar::FromUint64(1, round3.at(1).k_proof.z.group());
 
   const auto result =
-      parties.at(2).TryFinalize(BuildPeerMapFor(participants, 2, round3));
+      parties.at(2).TryFinalize(BuildPeerMapFor(signers, 2, round3));
   Expect(!result.ok(),
          "SM2 offline finalize must reject tampered nonce proof");
   ExpectAbort(result.abort, AbortStage::kOffline, AbortKind::kIdentifiable,
@@ -176,21 +176,21 @@ void TestTamperedOfflineNonceProofAbortsFinalize() {
 
 void TestTamperedOfflineA1ProofIdentifiesCulprit() {
   const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
-  const auto participants = BuildParticipants(3);
+  const std::vector<PartyIndex> signers = {1, 2};
   const auto keygen_outputs =
       RunKeygen(/*n=*/3, /*t=*/1, Bytes{0x84, 0x07}, signer_id);
   auto parties =
-      BuildOfflineParties(participants, keygen_outputs, Bytes{0x84, 0x08});
+      BuildOfflineParties(signers, keygen_outputs, Bytes{0x84, 0x08});
 
   tecdsa::sm2::presign::PeerMap<tecdsa::sm2::presign::Round1Msg> round1;
-  for (PartyIndex party : participants) {
+  for (PartyIndex party : signers) {
     round1.emplace(party, parties.at(party).MakeRound1());
   }
 
   std::vector<tecdsa::sm2::presign::Round2Request> all_requests;
-  for (PartyIndex party : participants) {
+  for (PartyIndex party : signers) {
     const auto requests = parties.at(party).MakeRound2Requests(
-        BuildPeerMapFor(participants, party, round1));
+        BuildPeerMapFor(signers, party, round1));
     all_requests.insert(all_requests.end(), requests.begin(), requests.end());
   }
 
@@ -221,23 +221,23 @@ void TestTamperedOfflineA1ProofIdentifiesCulprit() {
 void TestTamperedOnlinePartialAbortsFinalize() {
   const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
   const Bytes message = {'t', 'a', 'm', 'p', 'e', 'r'};
-  const auto participants = BuildParticipants(3);
+  const std::vector<PartyIndex> signers = {1, 2};
   const auto keygen_outputs =
       RunKeygen(/*n=*/3, /*t=*/1, Bytes{0x84, 0x04}, signer_id);
   const auto offline_states =
-      RunOffline(participants, keygen_outputs, Bytes{0x84, 0x05});
-  auto parties = BuildOnlineParties(participants, keygen_outputs, offline_states,
+      RunOffline(signers, keygen_outputs, Bytes{0x84, 0x05});
+  auto parties = BuildOnlineParties(signers, keygen_outputs, offline_states,
                                     Bytes{0x84, 0x06}, message);
 
   tecdsa::sm2::sign::PeerMap<tecdsa::Scalar> partials;
-  for (PartyIndex party : participants) {
+  for (PartyIndex party : signers) {
     partials.emplace(party, parties.at(party).MakePartialSignature());
   }
   partials.at(1) =
       partials.at(1) + tecdsa::Scalar::FromUint64(1, partials.at(1).group());
 
   const auto result =
-      parties.at(2).TryFinalize(BuildPeerMapFor(participants, 2, partials));
+      parties.at(2).TryFinalize(BuildPeerMapFor(signers, 2, partials));
   Expect(!result.ok(),
          "SM2 online finalize must reject a tampered partial signature");
   ExpectAbort(result.abort, AbortStage::kOnline, AbortKind::kUnattributed,

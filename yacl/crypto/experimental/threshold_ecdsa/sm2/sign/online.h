@@ -54,6 +54,7 @@ class OnlineParty {
  private:
   OnlineConfig cfg_;
   std::vector<PartyIndex> peers_;
+  Scalar weighted_z_i_;
   Scalar message_hash_;
   Scalar r_;
   std::optional<Scalar> partial_s_prime_;

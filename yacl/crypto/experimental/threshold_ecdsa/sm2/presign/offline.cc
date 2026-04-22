@@ -83,11 +83,24 @@ OfflineParty::OfflineParty(OfflineConfig cfg)
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "sm2::presign::OfflineParty");
   peers_ = participant_set.peers;
+  if (cfg_.participants.size() !=
+      static_cast<size_t>(cfg_.public_keygen_data.threshold) + 1) {
+    TECDSA_THROW_ARGUMENT("offline signer set size must equal threshold + 1");
+  }
   if (cfg_.local_key_share.z_i.value() == 0) {
     TECDSA_THROW_ARGUMENT("local z share must be non-zero");
   }
   if (cfg_.local_key_share.paillier == nullptr) {
     TECDSA_THROW_ARGUMENT("local Paillier provider must be present");
+  }
+  const auto lagrange = internal::ComputeLagrangeAtZero(cfg_.participants);
+  const auto lambda_it = lagrange.find(cfg_.self_id);
+  if (lambda_it == lagrange.end()) {
+    TECDSA_THROW_ARGUMENT("missing Lagrange coefficient for signer");
+  }
+  local_weighted_z_i_ = lambda_it->second * cfg_.local_key_share.z_i;
+  if (local_weighted_z_i_.value() == 0) {
+    TECDSA_THROW_ARGUMENT("weighted z share must be non-zero");
   }
   local_k_i_ = internal::Sm2Zero();
   delta_initiator_sum_ = internal::Sm2Zero();
@@ -182,7 +195,7 @@ OfflineParty::TryMakeRound2Responses(
                &cfg_.public_keygen_data.all_aux_rsa_params.at(cfg_.self_id),
            .initiator_aux =
                &cfg_.public_keygen_data.all_aux_rsa_params.at(request.from),
-           .responder_secret = cfg_.local_key_share.z_i,
+           .responder_secret = local_weighted_z_i_,
            .public_witness_point = std::nullopt});
       responder_sum = responder_sum + consume.responder_share;
       out.push_back(consume.response);
@@ -218,7 +231,7 @@ Round3Msg OfflineParty::MakeRound3(
     delta_initiator_sum_ = delta_initiator_sum_ + consume.initiator_share;
   }
 
-  local_delta_i_ = (local_k_i_ * cfg_.local_key_share.z_i) + delta_initiator_sum_ +
+  local_delta_i_ = (local_k_i_ * local_weighted_z_i_) + delta_initiator_sum_ +
                    delta_responder_sum_;
   round3_ = Round3Msg{
       .K_i = local_K_i_,

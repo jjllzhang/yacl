@@ -27,8 +27,21 @@ OnlineParty::OnlineParty(OnlineConfig cfg) : cfg_(std::move(cfg)) {
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "sm2::sign::OnlineParty");
   peers_ = participant_set.peers;
+  if (cfg_.participants.size() !=
+      static_cast<size_t>(cfg_.public_keygen_data.threshold) + 1) {
+    TECDSA_THROW_ARGUMENT("online signer set size must equal threshold + 1");
+  }
   if (cfg_.local_key_share.z_i.value() == 0) {
     TECDSA_THROW_ARGUMENT("local z share must be non-zero");
+  }
+  const auto lagrange = internal::ComputeLagrangeAtZero(cfg_.participants);
+  const auto lambda_it = lagrange.find(cfg_.self_id);
+  if (lambda_it == lagrange.end()) {
+    TECDSA_THROW_ARGUMENT("missing Lagrange coefficient for signer");
+  }
+  weighted_z_i_ = lambda_it->second * cfg_.local_key_share.z_i;
+  if (weighted_z_i_.value() == 0) {
+    TECDSA_THROW_ARGUMENT("weighted z share must be non-zero");
   }
 
   const Bytes digest = zid::PreprocessMessageDigest(cfg_.local_key_share.binding,
@@ -47,7 +60,7 @@ Scalar OnlineParty::MakePartialSignature() {
     return *partial_s_prime_;
   }
 
-  partial_s_prime_ = (r_ * cfg_.local_key_share.z_i) + cfg_.offline.delta_i;
+  partial_s_prime_ = (r_ * weighted_z_i_) + cfg_.offline.delta_i;
   return *partial_s_prime_;
 }
 

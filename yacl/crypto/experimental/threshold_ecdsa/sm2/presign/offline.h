@@ -81,6 +81,7 @@ class OfflineParty {
   OfflineConfig cfg_;
   std::vector<PartyIndex> peers_;
   Scalar local_k_i_;
+  Scalar local_weighted_z_i_;
   ECPoint local_K_i_;
   Bytes local_randomness_;
   PeerMap<Bytes> phase1_commitments_;

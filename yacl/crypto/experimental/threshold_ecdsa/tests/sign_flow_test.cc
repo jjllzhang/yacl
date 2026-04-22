@@ -24,6 +24,8 @@ int main() {
     TestStage4SignConstructorRejectsSmallPaillierModulus();
     TestStage6SignConstructorRejectsMissingKeygenProofArtifacts();
     TestStage6SignConstructorRejectsInvalidKeygenProofArtifacts();
+    TestStage6SignConstructorRejectsSignerCountMismatch();
+    TestStage6FinalizePreservesRawHighS();
     TestStage6ProtocolSignCompatibilityAlias();
     TestStage6MalformedPhase2InitProofPayloadAbortsResponder();
     TestStage6MalformedPhase2ResponseProofPayloadAbortsInitiator();

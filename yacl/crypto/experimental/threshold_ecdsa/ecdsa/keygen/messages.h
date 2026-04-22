@@ -63,6 +63,7 @@ struct LocalKeyShare {
 
 struct PublicKeygenData {
   ECPoint y;
+  uint32_t threshold = 0;
   PeerMap<ECPoint> all_X_i;
   PeerMap<PaillierPublicKey> all_paillier_public;
   PeerMap<AuxRsaParams> all_aux_rsa_params;

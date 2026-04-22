@@ -84,6 +84,7 @@ struct LocalKeyShare {
 struct PublicKeygenData {
   ECPoint public_key;
   Scalar sigma_inverse;
+  uint32_t threshold = 0;
   PeerMap<ECPoint> all_plus_one_public_shares;
   PeerMap<PaillierPublicKey> all_paillier_public;
   PeerMap<AuxRsaParams> all_aux_rsa_params;
@@ -147,6 +148,7 @@ class KeygenParty {
   PeerMap<AuxRsaParams> all_aux_rsa_params_;
   PeerMap<AuxCorrectFormProof> all_aux_param_proofs_;
 
+  Scalar local_secret_z_i_;
   Scalar local_z_i_;
   Scalar local_gamma_i_;
   ECPoint local_Gamma_i_;

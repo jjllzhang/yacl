@@ -117,6 +117,7 @@ KeygenParty::KeygenParty(KeygenConfig cfg)
                           kDefaultSignerId + sizeof(kDefaultSignerId) - 1);
   }
   local_z_i_ = internal::Sm2Zero();
+  local_secret_z_i_ = internal::Sm2Zero();
   local_gamma_i_ = internal::Sm2Zero();
   sigma_initiator_sum_ = internal::Sm2Zero();
   sigma_responder_sum_ = internal::Sm2Zero();
@@ -161,6 +162,7 @@ void KeygenParty::EnsureLocalPolynomialPrepared() {
 
   local_vss_commitments_ = internal::BuildCommitments(local_poly_coefficients_);
   local_Z_i_ = local_vss_commitments_.front();
+  local_secret_z_i_ = local_poly_coefficients_.front();
 
   const auto commit = core::commitment::CommitMessage(
       core::DefaultSm2Suite(), kKeygenPhase1CommitDomain,
@@ -390,7 +392,7 @@ KeygenParty::TryMakeRound3Responses(
           {.initiator_modulus_n = all_paillier_public_.at(request.from).n,
            .responder_aux = &all_aux_rsa_params_.at(cfg_.self_id),
            .initiator_aux = &all_aux_rsa_params_.at(request.from),
-           .responder_secret = local_z_i_,
+           .responder_secret = local_secret_z_i_,
            .public_witness_point = std::nullopt});
       responder_sum = responder_sum + consume.responder_share;
       out.push_back(consume.response);
@@ -428,8 +430,8 @@ KeygenRound4Msg KeygenParty::MakeRound4(
     sigma_initiator_sum_ = sigma_initiator_sum_ + consume.initiator_share;
   }
 
-  local_sigma_i_ =
-      (local_gamma_i_ * local_z_i_) + sigma_initiator_sum_ + sigma_responder_sum_;
+  local_sigma_i_ = (local_gamma_i_ * local_secret_z_i_) +
+                   sigma_initiator_sum_ + sigma_responder_sum_;
   round4_ = KeygenRound4Msg{
       .sigma_i = local_sigma_i_,
       .Gamma_i = local_Gamma_i_,
@@ -474,6 +476,7 @@ detection::DetectionResult<KeygenOutput> KeygenParty::TryFinalize(
   gamma_points.push_back(local_Gamma_i_);
 
   PublicKeygenData public_data;
+  public_data.threshold = cfg_.threshold;
   public_data.all_paillier_public = all_paillier_public_;
   public_data.all_aux_rsa_params = all_aux_rsa_params_;
   public_data.all_aux_param_proofs = all_aux_param_proofs_;

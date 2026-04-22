@@ -145,6 +145,10 @@ SignParty::SignParty(SignConfig cfg)
   const auto participant_set = core::participant::BuildParticipantSet(
       cfg_.participants, cfg_.self_id, "ecdsa::sign::SignParty");
   peers_ = participant_set.peers;
+  if (cfg_.participants.size() !=
+      static_cast<size_t>(cfg_.public_keygen_data.threshold) + 1) {
+    TECDSA_THROW_ARGUMENT("signer set size must equal threshold + 1");
+  }
   if (cfg_.msg32.size() != 32) {
     TECDSA_THROW_ARGUMENT("msg32 must be exactly 32 bytes for SignParty");
   }
@@ -794,18 +798,14 @@ Signature SignParty::Finalize(const PeerMap<Scalar>& peer_round5e) {
     TECDSA_THROW_ARGUMENT("aggregated signature scalar s is zero");
   }
 
-  Scalar canonical_s = s;
-  if (verify::IsHighScalar(canonical_s)) {
-    canonical_s = Scalar() - canonical_s;
-  }
   if (!verify::VerifyEcdsaSignatureMath(cfg_.public_keygen_data.y, cfg_.msg32,
-                                        r_, canonical_s)) {
+                                        r_, s)) {
     TECDSA_THROW_ARGUMENT("final ECDSA signature verification failed");
   }
 
   signature_ = Signature{
       .r = r_,
-      .s = canonical_s,
+      .s = s,
       .R = R_,
   };
   return *signature_;
