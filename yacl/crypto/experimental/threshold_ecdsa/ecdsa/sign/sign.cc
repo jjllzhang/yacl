@@ -33,6 +33,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/adapters.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_affine.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/scalar_utils.h"

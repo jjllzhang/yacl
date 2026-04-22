@@ -23,6 +23,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/adapters.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_range.h"
 
 namespace tecdsa::sm2::proofs {

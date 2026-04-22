@@ -14,8 +14,9 @@
 
 #pragma once
 
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::sm2::proofs {
 
@@ -67,91 +68,5 @@ struct PiGroupRelationProof {
   ECPoint a_h;
   Scalar z;
 };
-
-inline PiRangeProof FromCorePiRangeProof(const core::mta::A1RangeProof& proof) {
-  return PiRangeProof{
-      .z = proof.z,
-      .u = proof.u,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-  };
-}
-
-inline core::mta::A1RangeProof ToCorePiRangeProof(const PiRangeProof& proof) {
-  return core::mta::A1RangeProof{
-      .z = proof.z,
-      .u = proof.u,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-  };
-}
-
-inline PiLinearGroupProof FromCorePiLinearGroupProof(
-    const core::mta::A2MtAwcProof& proof) {
-  return PiLinearGroupProof{
-      .u = proof.u,
-      .z = proof.z,
-      .z2 = proof.z2,
-      .t = proof.t,
-      .v = proof.v,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-      .t1 = proof.t1,
-      .t2 = proof.t2,
-  };
-}
-
-inline core::mta::A2MtAwcProof ToCorePiLinearGroupProof(
-    const PiLinearGroupProof& proof) {
-  return core::mta::A2MtAwcProof{
-      .u = proof.u,
-      .z = proof.z,
-      .z2 = proof.z2,
-      .t = proof.t,
-      .v = proof.v,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-      .t1 = proof.t1,
-      .t2 = proof.t2,
-  };
-}
-
-inline PiLinearProof FromCorePiLinearProof(const core::mta::A3MtAProof& proof) {
-  return PiLinearProof{
-      .z = proof.z,
-      .z2 = proof.z2,
-      .t = proof.t,
-      .v = proof.v,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-      .t1 = proof.t1,
-      .t2 = proof.t2,
-  };
-}
-
-inline core::mta::A3MtAProof ToCorePiLinearProof(const PiLinearProof& proof) {
-  return core::mta::A3MtAProof{
-      .z = proof.z,
-      .z2 = proof.z2,
-      .t = proof.t,
-      .v = proof.v,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-      .t1 = proof.t1,
-      .t2 = proof.t2,
-  };
-}
 
 }  // namespace tecdsa::sm2::proofs

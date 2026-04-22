@@ -23,6 +23,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/adapters.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_range.h"
 
 namespace tecdsa::ecdsa::proofs {

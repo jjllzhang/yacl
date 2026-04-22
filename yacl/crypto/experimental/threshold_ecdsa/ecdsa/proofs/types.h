@@ -14,7 +14,8 @@
 
 #pragma once
 
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 
 namespace tecdsa::ecdsa::proofs {
 
@@ -55,91 +56,5 @@ struct A3MtAProof {
   BigInt t1 = BigInt(0);
   BigInt t2 = BigInt(0);
 };
-
-inline A1RangeProof FromCoreA1RangeProof(const core::mta::A1RangeProof& proof) {
-  return A1RangeProof{
-      .z = proof.z,
-      .u = proof.u,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-  };
-}
-
-inline core::mta::A1RangeProof ToCoreA1RangeProof(const A1RangeProof& proof) {
-  return core::mta::A1RangeProof{
-      .z = proof.z,
-      .u = proof.u,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-  };
-}
-
-inline A2MtAwcProof FromCoreA2MtAwcProof(
-    const core::mta::A2MtAwcProof& proof) {
-  return A2MtAwcProof{
-      .u = proof.u,
-      .z = proof.z,
-      .z2 = proof.z2,
-      .t = proof.t,
-      .v = proof.v,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-      .t1 = proof.t1,
-      .t2 = proof.t2,
-  };
-}
-
-inline core::mta::A2MtAwcProof ToCoreA2MtAwcProof(
-    const A2MtAwcProof& proof) {
-  return core::mta::A2MtAwcProof{
-      .u = proof.u,
-      .z = proof.z,
-      .z2 = proof.z2,
-      .t = proof.t,
-      .v = proof.v,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-      .t1 = proof.t1,
-      .t2 = proof.t2,
-  };
-}
-
-inline A3MtAProof FromCoreA3MtAProof(const core::mta::A3MtAProof& proof) {
-  return A3MtAProof{
-      .z = proof.z,
-      .z2 = proof.z2,
-      .t = proof.t,
-      .v = proof.v,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-      .t1 = proof.t1,
-      .t2 = proof.t2,
-  };
-}
-
-inline core::mta::A3MtAProof ToCoreA3MtAProof(const A3MtAProof& proof) {
-  return core::mta::A3MtAProof{
-      .z = proof.z,
-      .z2 = proof.z2,
-      .t = proof.t,
-      .v = proof.v,
-      .w = proof.w,
-      .s = proof.s,
-      .s1 = proof.s1,
-      .s2 = proof.s2,
-      .t1 = proof.t1,
-      .t2 = proof.t2,
-  };
-}
 
 }  // namespace tecdsa::ecdsa::proofs

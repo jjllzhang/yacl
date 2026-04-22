@@ -19,6 +19,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/adapters.h"
 
 namespace tecdsa::sm2::proofs {
 namespace {
@@ -57,14 +58,15 @@ Scalar BuildPiGroupRelationChallenge(const Bytes& session_id,
 PiGroupProof BuildPiGroupProof(const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,
                                const Scalar& witness) {
-  return core::proof::BuildSchnorrProof(core::DefaultSm2Suite(), session_id,
-                                        prover_id, statement, witness);
+  return FromCorePiGroupProof(core::proof::BuildSchnorrProof(
+      core::DefaultSm2Suite(), session_id, prover_id, statement, witness));
 }
 
 bool VerifyPiGroupProof(const Bytes& session_id, PartyIndex prover_id,
                         const ECPoint& statement, const PiGroupProof& proof) {
   return core::proof::VerifySchnorrProof(core::DefaultSm2Suite(), session_id,
-                                         prover_id, statement, proof);
+                                         prover_id, statement,
+                                         ToCorePiGroupProof(proof));
 }
 
 PiGroupRelationProof BuildPiGroupRelationProof(const Bytes& session_id,
