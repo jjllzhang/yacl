@@ -28,6 +28,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_setup.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
@@ -271,6 +272,26 @@ void TestStage3CoreCryptoCompatibility() {
   Expect(!tecdsa::core::paillier::VerifySquareFreeProofGmr98(
              core_paillier.modulus_n_bigint(), square_free, wrong_ctx),
          "core square-free proof must bind the verifier context");
+}
+
+void TestPaperAuxSetupGeneration() {
+  const auto bundle =
+      tecdsa::core::paillier::GeneratePaperAuxSetup(/*modulus_bits=*/192);
+  Expect(tecdsa::core::paillier::ValidatePaperAuxSetup(bundle.params,
+                                                       bundle.witness),
+         "paper auxiliary setup must self-validate");
+  Expect(bundle.params.n_tilde ==
+             bundle.witness.P_tilde * bundle.witness.Q_tilde,
+         "paper auxiliary modulus must equal the product of safe primes");
+  Expect(bundle.witness.p_tilde.IsPrime() && bundle.witness.q_tilde.IsPrime(),
+         "paper auxiliary setup must expose prime half-factors");
+  Expect(bundle.witness.P_tilde.IsPrime() && bundle.witness.Q_tilde.IsPrime(),
+         "paper auxiliary setup must expose safe primes");
+  Expect((bundle.witness.P_tilde % 4) == 3 && (bundle.witness.Q_tilde % 4) == 3,
+         "paper auxiliary safe primes must be Blum primes");
+  Expect(bundle.params.h1 != bundle.params.h2 && bundle.params.h1 > 1 &&
+             bundle.params.h2 > 1,
+         "paper auxiliary setup must produce distinct non-trivial Pedersen bases");
 }
 
 void TestStage4MtaAndRelationHelpers() {
@@ -719,6 +740,7 @@ int main() {
     TestStage2ParticipantAndVssHelpers();
     TestStage2SchnorrHelpers();
     TestStage3CoreCryptoCompatibility();
+    TestPaperAuxSetupGeneration();
     TestStage4MtaAndRelationHelpers();
     TestStage12ExplicitTranscriptAndCommitmentContext();
     TestStage13MtaContextUsesExplicitSuite();

@@ -21,6 +21,8 @@
 namespace tecdsa::sign_flow_test {
 namespace {
 
+constexpr uint32_t kTestAuxRsaBits = 192;
+
 std::unordered_map<PartyIndex, std::vector<SignRound2Request>>
 GroupRound2RequestsByRecipient(const std::vector<SignRound2Request>& requests) {
   std::unordered_map<PartyIndex, std::vector<SignRound2Request>> grouped;
@@ -88,6 +90,7 @@ KeygenPartyMap BuildParties(uint32_t n, uint32_t t, const Bytes& session_id) {
     cfg.self_id = party;
     cfg.participants = participants;
     cfg.threshold = t;
+    cfg.aux_rsa_modulus_bits = kTestAuxRsaBits;
     parties.emplace(party, KeygenParty(std::move(cfg)));
   }
   return parties;

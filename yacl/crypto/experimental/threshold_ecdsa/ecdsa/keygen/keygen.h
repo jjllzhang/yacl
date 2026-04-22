@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_types.h"
 
 namespace tecdsa::ecdsa::keygen {
 
@@ -61,6 +62,7 @@ class KeygenParty {
   std::shared_ptr<PaillierProvider> local_paillier_;
   PaillierPublicKey local_paillier_public_;
   AuxRsaParams local_aux_rsa_params_;
+  core::paillier::PaperAuxSetupWitness local_aux_rsa_witness_;
   SquareFreeProof local_square_free_proof_;
   AuxRsaParamProof local_aux_param_proof_;
 

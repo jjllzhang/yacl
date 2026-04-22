@@ -19,6 +19,8 @@
 namespace tecdsa::sm2::test {
 namespace {
 
+constexpr uint32_t kTestAuxRsaBits = 192;
+
 std::unordered_map<PartyIndex, std::vector<KeygenRound3Request>>
 GroupKeygenRequestsByRecipient(const std::vector<KeygenRound3Request>& requests) {
   std::unordered_map<PartyIndex, std::vector<KeygenRound3Request>> grouped;
@@ -95,6 +97,7 @@ KeygenPartyMap BuildKeygenParties(uint32_t n, uint32_t t, const Bytes& session_i
     cfg.self_id = party;
     cfg.participants = participants;
     cfg.threshold = t;
+    cfg.aux_rsa_modulus_bits = kTestAuxRsaBits;
     cfg.signer_id = signer_id;
     parties.emplace(party, KeygenParty(std::move(cfg)));
   }

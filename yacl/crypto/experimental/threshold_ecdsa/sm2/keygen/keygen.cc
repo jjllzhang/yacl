@@ -23,6 +23,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_setup.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
@@ -34,7 +35,7 @@ namespace mta = tecdsa::core::mta;
 namespace paillier = tecdsa::core::paillier;
 
 constexpr uint32_t kMinPaillierKeygenBits = 2048;
-constexpr uint32_t kMinAuxRsaKeygenBits = 2048;
+constexpr uint32_t kMinAuxRsaKeygenBits = 164;
 constexpr size_t kMaxPaillierKeygenAttempts = 32;
 constexpr char kKeygenPhase1CommitDomain[] = "SM2/keygen/phase1";
 constexpr char kDefaultSignerId[] = "1234567812345678";
@@ -103,7 +104,7 @@ KeygenParty::KeygenParty(KeygenConfig cfg)
     TECDSA_THROW_ARGUMENT("paillier_modulus_bits must be >= 2048");
   }
   if (cfg_.aux_rsa_modulus_bits < kMinAuxRsaKeygenBits) {
-    TECDSA_THROW_ARGUMENT("aux_rsa_modulus_bits must be >= 2048");
+    TECDSA_THROW_ARGUMENT("aux_rsa_modulus_bits must be >= 164");
   }
   if (cfg_.signer_id.empty()) {
     cfg_.signer_id.assign(kDefaultSignerId,
@@ -192,8 +193,13 @@ void KeygenParty::EnsureLocalProofsPrepared() {
   const auto context =
       paillier::BuildProofContext(cfg_.session_id, cfg_.self_id,
                                   core::DefaultSm2Suite(), internal::Sm2Group());
-  local_aux_rsa_params_ =
-      GenerateAuxRsaParams(cfg_.aux_rsa_modulus_bits, cfg_.self_id);
+  const auto aux_setup = paillier::GeneratePaperAuxSetup(cfg_.aux_rsa_modulus_bits);
+  local_aux_rsa_params_ = aux_setup.params;
+  local_aux_rsa_witness_ = aux_setup.witness;
+  if (!paillier::ValidatePaperAuxSetup(local_aux_rsa_params_,
+                                       local_aux_rsa_witness_)) {
+    TECDSA_THROW("failed to validate local paper auxiliary setup");
+  }
   local_square_free_proof_ = BuildSquareFreeProofGmr98(
       local_paillier_public_.n, local_paillier_->private_lambda_bigint(),
       context);

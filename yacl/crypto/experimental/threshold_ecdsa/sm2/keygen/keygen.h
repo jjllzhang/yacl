@@ -22,6 +22,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
@@ -126,6 +127,7 @@ class KeygenParty {
   std::shared_ptr<PaillierProvider> local_paillier_;
   PaillierPublicKey local_paillier_public_;
   AuxRsaParams local_aux_rsa_params_;
+  core::paillier::PaperAuxSetupWitness local_aux_rsa_witness_;
   SquareFreeProof local_square_free_proof_;
   AuxRsaParamProof local_aux_param_proof_;
 
