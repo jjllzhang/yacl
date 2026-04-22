@@ -23,10 +23,28 @@ namespace tecdsa::sm2::proofs {
 
 using PiGroupProof = core::proof::SchnorrProof;
 
+struct PiGroupRelationProof {
+  ECPoint a_g;
+  ECPoint a_h;
+  Scalar z;
+};
+
 PiGroupProof BuildPiGroupProof(const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,
                                const Scalar& witness);
 bool VerifyPiGroupProof(const Bytes& session_id, PartyIndex prover_id,
                         const ECPoint& statement, const PiGroupProof& proof);
+
+PiGroupRelationProof BuildPiGroupRelationProof(const Bytes& session_id,
+                                               PartyIndex prover_id,
+                                               const ECPoint& base_h,
+                                               const ECPoint& statement_g,
+                                               const ECPoint& statement_h,
+                                               const Scalar& witness);
+bool VerifyPiGroupRelationProof(const Bytes& session_id, PartyIndex prover_id,
+                                const ECPoint& base_h,
+                                const ECPoint& statement_g,
+                                const ECPoint& statement_h,
+                                const PiGroupRelationProof& proof);
 
 }  // namespace tecdsa::sm2::proofs

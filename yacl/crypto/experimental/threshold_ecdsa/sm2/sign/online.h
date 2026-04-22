@@ -52,9 +52,9 @@ class OnlineParty {
   verify::Signature Finalize(const PeerMap<Scalar>& peer_partials);
 
  private:
-  OnlineConfig cfg_;
+ OnlineConfig cfg_;
   std::vector<PartyIndex> peers_;
-  Scalar weighted_z_i_;
+  Scalar local_w_i_;
   Scalar message_hash_;
   Scalar r_;
   std::optional<Scalar> partial_s_prime_;

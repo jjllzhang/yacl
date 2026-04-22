@@ -39,9 +39,17 @@ OnlineParty::OnlineParty(OnlineConfig cfg) : cfg_(std::move(cfg)) {
   if (lambda_it == lagrange.end()) {
     TECDSA_THROW_ARGUMENT("missing Lagrange coefficient for signer");
   }
-  weighted_z_i_ = lambda_it->second * cfg_.local_key_share.z_i;
-  if (weighted_z_i_.value() == 0) {
-    TECDSA_THROW_ARGUMENT("weighted z share must be non-zero");
+  local_w_i_ = lambda_it->second * cfg_.local_key_share.z_i;
+  if (local_w_i_.value() == 0) {
+    TECDSA_THROW_ARGUMENT("weighted SM2 signing share must be non-zero");
+  }
+  for (PartyIndex party : cfg_.participants) {
+    if (!cfg_.offline.all_W_i.contains(party) || !cfg_.offline.all_T_i.contains(party)) {
+      TECDSA_THROW_ARGUMENT("offline state is missing W_i/T_i data for signers");
+    }
+  }
+  if (ECPoint::GeneratorMultiply(local_w_i_) != cfg_.offline.all_W_i.at(cfg_.self_id)) {
+    TECDSA_THROW_ARGUMENT("offline W_i does not match local SM2 signing share");
   }
 
   const Bytes digest = zid::PreprocessMessageDigest(cfg_.local_key_share.binding,
@@ -60,7 +68,7 @@ Scalar OnlineParty::MakePartialSignature() {
     return *partial_s_prime_;
   }
 
-  partial_s_prime_ = (r_ * weighted_z_i_) + cfg_.offline.delta_i;
+  partial_s_prime_ = (r_ * local_w_i_) + cfg_.offline.delta_i;
   return *partial_s_prime_;
 }
 
@@ -110,6 +118,34 @@ detection::DetectionResult<verify::Signature> OnlineParty::TryFinalize(
   if (!verify::VerifySm2SignatureMath(cfg_.public_keygen_data.public_key,
                                       cfg_.local_key_share.binding,
                                       cfg_.message, signature)) {
+    std::optional<PartyIndex> culprit;
+    size_t mismatch_count = 0;
+    auto record_mismatch = [&](PartyIndex party, const Scalar& partial) {
+      const ECPoint lhs = ECPoint::GeneratorMultiply(partial);
+      const ECPoint rhs =
+          cfg_.offline.all_T_i.at(party).Add(cfg_.offline.all_W_i.at(party).Mul(r_));
+      if (lhs != rhs) {
+        culprit = party;
+        ++mismatch_count;
+      }
+    };
+    try {
+      record_mismatch(cfg_.self_id, *partial_s_prime_);
+      for (PartyIndex peer : peers_) {
+        record_mismatch(peer, peer_partials.at(peer));
+      }
+    } catch (const std::exception&) {
+      mismatch_count = 0;
+      culprit = std::nullopt;
+    }
+    if (mismatch_count == 1 && culprit.has_value()) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kOnline,
+                  detection::EvidenceKind::kPartialSignature, cfg_.session_id,
+                  cfg_.self_id, *culprit,
+                  "SM2 partial signature relation check failed")};
+    }
     return {.value = std::nullopt,
             .abort = detection::MakeUnattributedAbort(
                 detection::AbortStage::kOnline,

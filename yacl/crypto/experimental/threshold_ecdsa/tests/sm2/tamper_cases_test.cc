@@ -118,6 +118,76 @@ void TestTamperedKeygenGammaProofAbortsFinalize() {
               "SM2 keygen finalize gamma blame");
 }
 
+void TestTamperedKeygenYShareProofAbortsFinalize() {
+  const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
+  const auto participants = BuildParticipants(3);
+  auto parties =
+      BuildKeygenParties(/*n=*/3, /*t=*/1, Bytes{0x84, 0x09}, signer_id);
+
+  tecdsa::sm2::test::PeerMap<tecdsa::sm2::keygen::KeygenRound1Msg> round1;
+  for (PartyIndex party : participants) {
+    round1.emplace(party, parties.at(party).MakeRound1());
+  }
+
+  tecdsa::sm2::test::PeerMap<tecdsa::sm2::keygen::KeygenRound2Broadcast>
+      round2_broadcasts;
+  tecdsa::sm2::test::KeygenRound2Shares round2_shares;
+  for (PartyIndex party : participants) {
+    const auto round2 =
+        parties.at(party).MakeRound2(BuildPeerMapFor(participants, party, round1));
+    round2_broadcasts.emplace(party, round2.broadcast);
+    round2_shares.emplace(party, round2.shares_for_peers);
+  }
+
+  std::vector<tecdsa::sm2::keygen::KeygenRound3Request> all_requests;
+  for (PartyIndex party : participants) {
+    tecdsa::sm2::keygen::PeerMap<tecdsa::Scalar> shares_for_self;
+    for (PartyIndex peer : participants) {
+      if (peer != party) {
+        shares_for_self.emplace(peer, round2_shares.at(peer).at(party));
+      }
+    }
+    const auto requests = parties.at(party).MakeRound3Requests(
+        BuildPeerMapFor(participants, party, round2_broadcasts), shares_for_self);
+    all_requests.insert(all_requests.end(), requests.begin(), requests.end());
+  }
+
+  std::unordered_map<PartyIndex, std::vector<tecdsa::sm2::keygen::KeygenRound3Request>>
+      grouped_requests;
+  for (const auto& request : all_requests) {
+    grouped_requests[request.to].push_back(request);
+  }
+  std::vector<tecdsa::sm2::keygen::KeygenRound3Response> all_responses;
+  for (PartyIndex party : participants) {
+    const auto responses =
+        parties.at(party).MakeRound3Responses(grouped_requests.at(party));
+    all_responses.insert(all_responses.end(), responses.begin(), responses.end());
+  }
+  std::unordered_map<
+      PartyIndex, std::vector<tecdsa::sm2::keygen::KeygenRound3Response>>
+      grouped_responses;
+  for (const auto& response : all_responses) {
+    grouped_responses[response.to].push_back(response);
+  }
+
+  tecdsa::sm2::keygen::PeerMap<KeygenRound4Msg> round4;
+  for (PartyIndex party : participants) {
+    round4.emplace(party, parties.at(party).MakeRound4(grouped_responses.at(party)));
+  }
+  round4.at(1).y_proof.z =
+      round4.at(1).y_proof.z +
+      tecdsa::Scalar::FromUint64(1, round4.at(1).y_proof.z.group());
+
+  const auto result =
+      parties.at(2).TryFinalize(BuildPeerMapFor(participants, 2, round4));
+  Expect(!result.ok(),
+         "SM2 keygen finalize must reject tampered y share proof");
+  ExpectAbort(result.abort, AbortStage::kKeygen, AbortKind::kIdentifiable,
+              EvidenceKind::kGammaProof, /*culprit=*/1,
+              /*instance_id=*/std::nullopt,
+              "SM2 keygen finalize y share blame");
+}
+
 void TestTamperedOfflineNonceProofAbortsFinalize() {
   const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
   const std::vector<PartyIndex> signers = {1, 2};
@@ -172,6 +242,62 @@ void TestTamperedOfflineNonceProofAbortsFinalize() {
               EvidenceKind::kNonceProof, /*culprit=*/1,
               /*instance_id=*/std::nullopt,
               "SM2 offline finalize nonce blame");
+}
+
+void TestTamperedOfflineWkRelationProofIdentifiesCulprit() {
+  const Bytes signer_id = {'a', 'l', 'i', 'c', 'e'};
+  const std::vector<PartyIndex> signers = {1, 2};
+  const auto keygen_outputs =
+      RunKeygen(/*n=*/3, /*t=*/1, Bytes{0x84, 0x0a}, signer_id);
+  auto parties =
+      BuildOfflineParties(signers, keygen_outputs, Bytes{0x84, 0x0b});
+
+  tecdsa::sm2::presign::PeerMap<tecdsa::sm2::presign::Round1Msg> round1;
+  for (PartyIndex party : signers) {
+    round1.emplace(party, parties.at(party).MakeRound1());
+  }
+
+  std::vector<tecdsa::sm2::presign::Round2Request> all_requests;
+  for (PartyIndex party : signers) {
+    const auto requests = parties.at(party).MakeRound2Requests(
+        BuildPeerMapFor(signers, party, round1));
+    all_requests.insert(all_requests.end(), requests.begin(), requests.end());
+  }
+
+  std::unordered_map<PartyIndex, std::vector<tecdsa::sm2::presign::Round2Request>>
+      grouped_requests;
+  for (const auto& request : all_requests) {
+    grouped_requests[request.to].push_back(request);
+  }
+  std::vector<tecdsa::sm2::presign::Round2Response> all_responses;
+  for (PartyIndex party : signers) {
+    const auto responses =
+        parties.at(party).MakeRound2Responses(grouped_requests.at(party));
+    all_responses.insert(all_responses.end(), responses.begin(), responses.end());
+  }
+  std::unordered_map<
+      PartyIndex, std::vector<tecdsa::sm2::presign::Round2Response>>
+      grouped_responses;
+  for (const auto& response : all_responses) {
+    grouped_responses[response.to].push_back(response);
+  }
+
+  tecdsa::sm2::presign::PeerMap<Round3Msg> round3;
+  for (PartyIndex party : signers) {
+    round3.emplace(party, parties.at(party).MakeRound3(grouped_responses.at(party)));
+  }
+  round3.at(1).wk_proof.z =
+      round3.at(1).wk_proof.z +
+      tecdsa::Scalar::FromUint64(1, round3.at(1).wk_proof.z.group());
+
+  const auto result =
+      parties.at(2).TryFinalize(BuildPeerMapFor(signers, 2, round3));
+  Expect(!result.ok(),
+         "SM2 offline finalize must reject tampered WK relation proof");
+  ExpectAbort(result.abort, AbortStage::kOffline, AbortKind::kIdentifiable,
+              EvidenceKind::kNonceProof, /*culprit=*/1,
+              /*instance_id=*/std::nullopt,
+              "SM2 offline finalize WK relation blame");
 }
 
 void TestTamperedOfflineA1ProofIdentifiesCulprit() {
@@ -240,17 +366,19 @@ void TestTamperedOnlinePartialAbortsFinalize() {
       parties.at(2).TryFinalize(BuildPeerMapFor(signers, 2, partials));
   Expect(!result.ok(),
          "SM2 online finalize must reject a tampered partial signature");
-  ExpectAbort(result.abort, AbortStage::kOnline, AbortKind::kUnattributed,
-              EvidenceKind::kPartialSignature, /*culprit=*/std::nullopt,
+  ExpectAbort(result.abort, AbortStage::kOnline, AbortKind::kIdentifiable,
+              EvidenceKind::kPartialSignature, /*culprit=*/1,
               /*instance_id=*/std::nullopt,
-              "SM2 online partial abort should be unattributed");
+              "SM2 online partial abort should identify the culprit");
 }
 
 }  // namespace
 
 void RunTamperCaseTests() {
   TestTamperedKeygenGammaProofAbortsFinalize();
+  TestTamperedKeygenYShareProofAbortsFinalize();
   TestTamperedOfflineNonceProofAbortsFinalize();
+  TestTamperedOfflineWkRelationProofIdentifiesCulprit();
   TestTamperedOfflineA1ProofIdentifiesCulprit();
   TestTamperedOnlinePartialAbortsFinalize();
 }

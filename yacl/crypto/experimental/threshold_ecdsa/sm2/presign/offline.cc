@@ -43,7 +43,7 @@ void RequireExactlyOneRequestPerPeer(const std::vector<Round2Request>& requests,
   std::unordered_set<PartyIndex> senders;
   senders.reserve(requests.size());
   for (const auto& request : requests) {
-    if (request.to != self_id || request.type != mta::MtaType::kMta) {
+    if (request.to != self_id || request.type != mta::MtaType::kMtAwc) {
       TECDSA_THROW_ARGUMENT("invalid SM2 offline request envelope");
     }
     if (!senders.insert(request.from).second) {
@@ -62,7 +62,7 @@ void RequireExactlyOneResponsePerPeer(
   std::unordered_set<PartyIndex> responders;
   responders.reserve(responses.size());
   for (const auto& response : responses) {
-    if (response.to != self_id || response.type != mta::MtaType::kMta) {
+    if (response.to != self_id || response.type != mta::MtaType::kMtAwc) {
       TECDSA_THROW_ARGUMENT("invalid SM2 offline response envelope");
     }
     if (!responders.insert(response.from).second) {
@@ -98,10 +98,31 @@ OfflineParty::OfflineParty(OfflineConfig cfg)
   if (lambda_it == lagrange.end()) {
     TECDSA_THROW_ARGUMENT("missing Lagrange coefficient for signer");
   }
-  local_weighted_z_i_ = lambda_it->second * cfg_.local_key_share.z_i;
-  if (local_weighted_z_i_.value() == 0) {
-    TECDSA_THROW_ARGUMENT("weighted z share must be non-zero");
+  for (PartyIndex party : cfg_.participants) {
+    if (!cfg_.public_keygen_data.all_Y_i.contains(party)) {
+      TECDSA_THROW_ARGUMENT("public SM2 Y_i shares must be present");
+    }
   }
+  local_w_i_ = lambda_it->second * cfg_.local_key_share.z_i;
+  if (local_w_i_.value() == 0) {
+    TECDSA_THROW_ARGUMENT("weighted SM2 signing share must be non-zero");
+  }
+  std::vector<ECPoint> w_points;
+  w_points.reserve(cfg_.participants.size());
+  for (PartyIndex party : cfg_.participants) {
+    const auto party_lambda_it = lagrange.find(party);
+    if (party_lambda_it == lagrange.end()) {
+      TECDSA_THROW_ARGUMENT("missing Lagrange coefficient for signer subset");
+    }
+    w_points_[party] =
+        cfg_.public_keygen_data.all_Y_i.at(party).Mul(party_lambda_it->second);
+    w_points.push_back(w_points_.at(party));
+  }
+  local_W_i_ = w_points_.at(cfg_.self_id);
+  if (ECPoint::GeneratorMultiply(local_w_i_) != local_W_i_) {
+    TECDSA_THROW_ARGUMENT("local SM2 W_i does not match weighted signing share");
+  }
+  W_ = internal::SumPointsOrThrow(w_points);
   local_k_i_ = internal::Sm2Zero();
   delta_initiator_sum_ = internal::Sm2Zero();
   delta_responder_sum_ = internal::Sm2Zero();
@@ -143,7 +164,7 @@ std::vector<Round2Request> OfflineParty::MakeRound2Requests(
     phase1_commitments_[peer] = peer_round1.at(peer).commitment;
     round2_requests_.push_back(delta_session_.CreateRequest({
         .responder_id = peer,
-        .type = mta::MtaType::kMta,
+        .type = mta::MtaType::kMtAwc,
         .initiator_paillier = cfg_.local_key_share.paillier.get(),
         .responder_aux = &cfg_.public_keygen_data.all_aux_rsa_params.at(peer),
         .initiator_secret = local_k_i_,
@@ -195,8 +216,8 @@ OfflineParty::TryMakeRound2Responses(
                &cfg_.public_keygen_data.all_aux_rsa_params.at(cfg_.self_id),
            .initiator_aux =
                &cfg_.public_keygen_data.all_aux_rsa_params.at(request.from),
-           .responder_secret = local_weighted_z_i_,
-           .public_witness_point = std::nullopt});
+           .responder_secret = local_w_i_,
+           .public_witness_point = local_W_i_});
       responder_sum = responder_sum + consume.responder_share;
       out.push_back(consume.response);
     } catch (const std::exception& ex) {
@@ -227,19 +248,28 @@ Round3Msg OfflineParty::MakeRound3(
         response,
         {.initiator_paillier = cfg_.local_key_share.paillier.get(),
          .initiator_aux = &cfg_.public_keygen_data.all_aux_rsa_params.at(cfg_.self_id),
-         .public_witness_point = std::nullopt});
+         .public_witness_point = w_points_.at(response.from)});
     delta_initiator_sum_ = delta_initiator_sum_ + consume.initiator_share;
   }
 
-  local_delta_i_ = (local_k_i_ * local_weighted_z_i_) + delta_initiator_sum_ +
+  local_delta_i_ = (local_k_i_ * local_w_i_) + delta_initiator_sum_ +
                    delta_responder_sum_;
+  local_T_i_ = ECPoint::GeneratorMultiply(local_delta_i_);
+  local_WK_i_ = W_.Mul(local_k_i_);
   round3_ = Round3Msg{
       .K_i = local_K_i_,
       .randomness = local_randomness_,
       .k_proof =
           proofs::BuildPiGroupProof(cfg_.session_id, cfg_.self_id, local_K_i_,
                                     local_k_i_),
-      .delta_i = local_delta_i_,
+      .T_i = local_T_i_,
+      .t_proof =
+          proofs::BuildPiGroupProof(cfg_.session_id, cfg_.self_id, local_T_i_,
+                                    local_delta_i_),
+      .WK_i = local_WK_i_,
+      .wk_proof = proofs::BuildPiGroupRelationProof(
+          cfg_.session_id, cfg_.self_id, W_, local_K_i_, local_WK_i_,
+          local_k_i_),
   };
   return *round3_;
 }
@@ -274,6 +304,16 @@ detection::DetectionResult<OfflineState> OfflineParty::TryFinalize(
   std::vector<ECPoint> k_points;
   k_points.reserve(cfg_.participants.size());
   k_points.push_back(local_K_i_);
+  PeerMap<ECPoint> all_t_points;
+  all_t_points[cfg_.self_id] = local_T_i_;
+  PeerMap<ECPoint> all_wk_points;
+  all_wk_points[cfg_.self_id] = local_WK_i_;
+  std::vector<ECPoint> t_points;
+  t_points.reserve(cfg_.participants.size());
+  t_points.push_back(local_T_i_);
+  std::vector<ECPoint> wk_points;
+  wk_points.reserve(cfg_.participants.size());
+  wk_points.push_back(local_WK_i_);
   for (PartyIndex peer : peers_) {
     const auto& msg = peer_round3.at(peer);
     const auto commitment_it = phase1_commitments_.find(peer);
@@ -320,13 +360,74 @@ detection::DetectionResult<OfflineState> OfflineParty::TryFinalize(
                   detection::EvidenceKind::kNonceProof, cfg_.session_id,
                   cfg_.self_id, peer, ex.what())};
     }
+    try {
+      if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.T_i,
+                                      msg.t_proof)) {
+        return {.value = std::nullopt,
+                .abort = detection::MakeIdentifiableAbort(
+                    detection::AbortStage::kOffline,
+                    detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                    cfg_.self_id, peer,
+                    "SM2 offline delta proof verification failed")};
+      }
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kOffline,
+                  detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                  cfg_.self_id, peer, ex.what())};
+    }
+    try {
+      if (!proofs::VerifyPiGroupRelationProof(cfg_.session_id, peer, W_,
+                                              msg.K_i, msg.WK_i,
+                                              msg.wk_proof)) {
+        return {.value = std::nullopt,
+                .abort = detection::MakeIdentifiableAbort(
+                    detection::AbortStage::kOffline,
+                    detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                    cfg_.self_id, peer,
+                    "SM2 offline W^k relation proof verification failed")};
+      }
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kOffline,
+                  detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                  cfg_.self_id, peer, ex.what())};
+    }
     k_points.push_back(msg.K_i);
+    all_t_points[peer] = msg.T_i;
+    all_wk_points[peer] = msg.WK_i;
+    t_points.push_back(msg.T_i);
+    wk_points.push_back(msg.WK_i);
+  }
+
+  try {
+    if (internal::SumPointsOrThrow(t_points) != internal::SumPointsOrThrow(wk_points)) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeUnattributedAbort(
+                  detection::AbortStage::kOffline,
+                  detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                  cfg_.self_id, "SM2 offline product relation check failed")};
+    }
+  } catch (const std::exception& ex) {
+    return {.value = std::nullopt,
+            .abort = detection::MakeUnattributedAbort(
+                detection::AbortStage::kOffline,
+                detection::EvidenceKind::kNonceProof, cfg_.session_id,
+                cfg_.self_id,
+                std::string("failed to aggregate SM2 offline relation points: ") +
+                    ex.what())};
   }
 
   try {
     offline_ = OfflineState{
         .delta_i = local_delta_i_,
         .R = internal::SumPointsOrThrow(k_points),
+        .W = W_,
+        .all_W_i = w_points_,
+        .all_T_i = std::move(all_t_points),
+        .all_WK_i = std::move(all_wk_points),
     };
   } catch (const std::exception& ex) {
     return {.value = std::nullopt,

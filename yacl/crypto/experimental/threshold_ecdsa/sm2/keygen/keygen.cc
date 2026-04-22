@@ -337,8 +337,17 @@ std::vector<KeygenRound3Request> KeygenParty::MakeRound3Requests(
   }
 
   local_z_i_ = z_sum;
+  local_Y_i_ = ECPoint::GeneratorMultiply(local_z_i_);
   local_gamma_i_ = internal::RandomNonZeroSm2Scalar();
   local_Gamma_i_ = ECPoint::GeneratorMultiply(local_gamma_i_);
+  std::vector<ECPoint> z_points;
+  z_points.reserve(cfg_.participants.size());
+  z_points.push_back(local_Z_i_);
+  for (PartyIndex peer : peers_) {
+    z_points.push_back(peer_round2.at(peer).Z_i);
+  }
+  global_Z_ = internal::SumPointsOrThrow(z_points);
+  local_ZGamma_i_ = global_Z_.Mul(local_gamma_i_);
 
   for (PartyIndex peer : peers_) {
     round3_requests_.push_back(sigma_session_.CreateRequest({
@@ -434,9 +443,15 @@ KeygenRound4Msg KeygenParty::MakeRound4(
                    sigma_initiator_sum_ + sigma_responder_sum_;
   round4_ = KeygenRound4Msg{
       .sigma_i = local_sigma_i_,
+      .Y_i = local_Y_i_,
+      .y_proof =
+          proofs::BuildPiGroupProof(cfg_.session_id, cfg_.self_id, local_Y_i_,
+                                    local_z_i_),
       .Gamma_i = local_Gamma_i_,
-      .gamma_proof = proofs::BuildPiGroupProof(cfg_.session_id, cfg_.self_id,
-                                               local_Gamma_i_, local_gamma_i_),
+      .ZGamma_i = local_ZGamma_i_,
+      .gamma_proof = proofs::BuildPiGroupRelationProof(
+          cfg_.session_id, cfg_.self_id, global_Z_, local_Gamma_i_,
+          local_ZGamma_i_, local_gamma_i_),
       .square_free_proof = local_square_free_proof_,
   };
   return *round4_;
@@ -477,6 +492,7 @@ detection::DetectionResult<KeygenOutput> KeygenParty::TryFinalize(
 
   PublicKeygenData public_data;
   public_data.threshold = cfg_.threshold;
+  public_data.all_Y_i[cfg_.self_id] = local_Y_i_;
   public_data.all_paillier_public = all_paillier_public_;
   public_data.all_aux_rsa_params = all_aux_rsa_params_;
   public_data.all_aux_param_proofs = all_aux_param_proofs_;
@@ -485,8 +501,25 @@ detection::DetectionResult<KeygenOutput> KeygenParty::TryFinalize(
   for (PartyIndex peer : peers_) {
     const auto& msg = peer_round4.at(peer);
     try {
-      if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.Gamma_i,
-                                      msg.gamma_proof)) {
+      if (!proofs::VerifyPiGroupProof(cfg_.session_id, peer, msg.Y_i,
+                                      msg.y_proof)) {
+        return {.value = std::nullopt,
+                .abort = detection::MakeIdentifiableAbort(
+                    detection::AbortStage::kKeygen,
+                    detection::EvidenceKind::kGammaProof, cfg_.session_id,
+                    cfg_.self_id, peer, "peer y share proof verification failed")};
+      }
+    } catch (const std::exception& ex) {
+      return {.value = std::nullopt,
+              .abort = detection::MakeIdentifiableAbort(
+                  detection::AbortStage::kKeygen,
+                  detection::EvidenceKind::kGammaProof, cfg_.session_id,
+                  cfg_.self_id, peer, ex.what())};
+    }
+    try {
+      if (!proofs::VerifyPiGroupRelationProof(cfg_.session_id, peer, global_Z_,
+                                              msg.Gamma_i, msg.ZGamma_i,
+                                              msg.gamma_proof)) {
         return {.value = std::nullopt,
                 .abort = detection::MakeIdentifiableAbort(
                     detection::AbortStage::kKeygen,
@@ -524,6 +557,7 @@ detection::DetectionResult<KeygenOutput> KeygenParty::TryFinalize(
     }
 
     sigma = sigma + msg.sigma_i;
+    public_data.all_Y_i[peer] = msg.Y_i;
     gamma_points.push_back(msg.Gamma_i);
     public_data.all_square_free_proofs[peer] = msg.square_free_proof;
   }

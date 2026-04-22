@@ -49,12 +49,19 @@ struct Round3Msg {
   ECPoint K_i;
   Bytes randomness;
   proofs::PiGroupProof k_proof;
-  Scalar delta_i;
+  ECPoint T_i;
+  proofs::PiGroupProof t_proof;
+  ECPoint WK_i;
+  proofs::PiGroupRelationProof wk_proof;
 };
 
 struct OfflineState {
   Scalar delta_i;
   ECPoint R;
+  ECPoint W;
+  PeerMap<ECPoint> all_W_i;
+  PeerMap<ECPoint> all_T_i;
+  PeerMap<ECPoint> all_WK_i;
 };
 
 class OfflineParty {
@@ -78,11 +85,14 @@ class OfflineParty {
  private:
   void EnsureRound1Prepared();
 
-  OfflineConfig cfg_;
+ OfflineConfig cfg_;
   std::vector<PartyIndex> peers_;
   Scalar local_k_i_;
-  Scalar local_weighted_z_i_;
+  Scalar local_w_i_;
   ECPoint local_K_i_;
+  ECPoint local_W_i_;
+  PeerMap<ECPoint> w_points_;
+  ECPoint W_;
   Bytes local_randomness_;
   PeerMap<Bytes> phase1_commitments_;
   tecdsa::core::mta::PairwiseProductSession delta_session_;
@@ -91,6 +101,8 @@ class OfflineParty {
   Scalar delta_initiator_sum_;
   Scalar delta_responder_sum_;
   Scalar local_delta_i_;
+  ECPoint local_T_i_;
+  ECPoint local_WK_i_;
   std::optional<Round1Msg> round1_;
   std::optional<Round3Msg> round3_;
   std::optional<OfflineState> offline_;

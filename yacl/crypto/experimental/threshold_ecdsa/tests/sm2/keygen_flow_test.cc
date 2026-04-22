@@ -20,6 +20,7 @@
 namespace {
 
 using tecdsa::Bytes;
+using tecdsa::ECPoint;
 using tecdsa::PartyIndex;
 using tecdsa::sm2::test::BuildParticipants;
 using tecdsa::sm2::test::Expect;
@@ -40,6 +41,14 @@ void TestHonestSm2KeygenFlow() {
     Expect(output.public_keygen_data.public_key ==
                baseline.public_keygen_data.public_key,
            "all SM2 parties must derive the same public key");
+    Expect(output.public_keygen_data.all_Y_i.size() == participants.size(),
+           "SM2 keygen must export all public y shares");
+    Expect(output.public_keygen_data.all_Y_i ==
+               baseline.public_keygen_data.all_Y_i,
+           "all SM2 parties must derive the same public y shares");
+    Expect(ECPoint::GeneratorMultiply(output.local_key_share.z_i) ==
+               output.public_keygen_data.all_Y_i.at(party),
+           "SM2 public y share must match the local signing share");
     Expect(output.local_key_share.binding.zid ==
                baseline.local_key_share.binding.zid,
            "all SM2 parties must derive the same zid");

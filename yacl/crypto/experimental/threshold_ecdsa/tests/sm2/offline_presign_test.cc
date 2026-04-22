@@ -15,6 +15,7 @@
 #include <iostream>
 
 #include "test_support.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
 
 namespace tecdsa::sm2::testcases {
 
@@ -53,9 +54,27 @@ void RunOfflinePresignTests() {
     const auto& state = offline_states.at(party);
     Expect(state.R == baseline.R,
            "all SM2 parties must derive the same offline R");
+    Expect(state.W == baseline.W,
+           "all SM2 parties must derive the same offline W");
     Expect(state.delta_i.value() != 0,
            "SM2 offline delta share should be non-zero in honest flow");
+    Expect(state.all_W_i.size() == signers.size(),
+           "SM2 offline state must include all W_i");
+    Expect(state.all_T_i.size() == signers.size(),
+           "SM2 offline state must include all T_i");
+    Expect(state.all_WK_i.size() == signers.size(),
+           "SM2 offline state must include all WK_i");
+    Expect(ECPoint::GeneratorMultiply(state.delta_i) == state.all_T_i.at(party),
+           "SM2 offline T_i must match local delta_i");
   }
+  Expect(tecdsa::sm2::internal::SumPointsOrThrow(
+             {baseline.all_W_i.at(1), baseline.all_W_i.at(2)}) == baseline.W,
+         "SM2 offline W must aggregate signer W_i");
+  Expect(tecdsa::sm2::internal::SumPointsOrThrow(
+             {baseline.all_T_i.at(1), baseline.all_T_i.at(2)}) ==
+             tecdsa::sm2::internal::SumPointsOrThrow(
+                 {baseline.all_WK_i.at(1), baseline.all_WK_i.at(2)}),
+         "SM2 offline aggregate T_i must match aggregate WK_i");
 }
 
 }  // namespace tecdsa::sm2::testcases

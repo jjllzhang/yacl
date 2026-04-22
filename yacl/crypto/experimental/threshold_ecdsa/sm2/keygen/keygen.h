@@ -70,8 +70,11 @@ using KeygenRound3Response = tecdsa::core::mta::PairwiseProductResponse;
 
 struct KeygenRound4Msg {
   Scalar sigma_i;
+  ECPoint Y_i;
+  proofs::PiGroupProof y_proof;
   ECPoint Gamma_i;
-  proofs::PiGroupProof gamma_proof;
+  ECPoint ZGamma_i;
+  proofs::PiGroupRelationProof gamma_proof;
   proofs::PiSqrProof square_free_proof;
 };
 
@@ -85,6 +88,7 @@ struct PublicKeygenData {
   ECPoint public_key;
   Scalar sigma_inverse;
   uint32_t threshold = 0;
+  PeerMap<ECPoint> all_Y_i;
   PeerMap<ECPoint> all_plus_one_public_shares;
   PeerMap<PaillierPublicKey> all_paillier_public;
   PeerMap<AuxRsaParams> all_aux_rsa_params;
@@ -142,6 +146,9 @@ class KeygenParty {
   Bytes local_commitment_;
   Bytes local_open_randomness_;
   std::vector<ECPoint> local_vss_commitments_;
+  ECPoint local_Y_i_;
+  ECPoint global_Z_;
+  ECPoint local_ZGamma_i_;
 
   PeerMap<Bytes> all_phase1_commitments_;
   PeerMap<PaillierPublicKey> all_paillier_public_;

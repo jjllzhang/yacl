@@ -23,13 +23,13 @@ namespace tecdsa::sm2::testcases {
 using tecdsa::Bytes;
 using tecdsa::PartyIndex;
 using tecdsa::Scalar;
+using tecdsa::sm2::test::BuildPeerMapFor;
 using tecdsa::sm2::test::BuildOnlineParties;
 using tecdsa::sm2::test::BuildParticipants;
 using tecdsa::sm2::test::Expect;
 using tecdsa::sm2::test::ExpectThrow;
 using tecdsa::sm2::test::RunKeygen;
 using tecdsa::sm2::test::RunOffline;
-using tecdsa::sm2::test::RunOnline;
 using tecdsa::sm2::verify::VerifySm2SignatureMath;
 
 void RunOnlineSignTests() {
@@ -86,8 +86,23 @@ void RunOnlineSignTests() {
              manual_signature),
          "strict SM2 subset signature formula must verify");
 
-  const auto signatures = RunOnline(signers, keygen_outputs, offline_states,
-                                    Bytes{0x83, 0x03}, message);
+  auto online_parties = BuildOnlineParties(signers, keygen_outputs, offline_states,
+                                           Bytes{0x83, 0x03}, message);
+  tecdsa::sm2::sign::PeerMap<Scalar> partials;
+  for (PartyIndex party : signers) {
+    partials.emplace(party, online_parties.at(party).MakePartialSignature());
+    Expect(ECPoint::GeneratorMultiply(partials.at(party)) ==
+               offline_states.at(party).all_T_i.at(party).Add(
+                   offline_states.at(party).all_W_i.at(party).Mul(r)),
+           "strict SM2 online partial must satisfy g^s_i = T_i * W_i^r");
+  }
+
+  std::unordered_map<PartyIndex, verify::Signature> signatures;
+  for (PartyIndex party : signers) {
+    signatures.emplace(
+        party, online_parties.at(party).Finalize(
+                   BuildPeerMapFor(signers, party, partials)));
+  }
   const auto& baseline = signatures.at(signers.front());
 
   for (PartyIndex party : signers) {
