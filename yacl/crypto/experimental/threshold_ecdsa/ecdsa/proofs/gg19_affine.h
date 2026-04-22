@@ -17,13 +17,12 @@
 #include <memory>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/types.h"
 
 namespace tecdsa::ecdsa::proofs {
 
 using BigInt = core::paillier::BigInt;
 using MtaProofContext = core::mta::MtaProofContext;
-using A2MtAwcProof = core::mta::A2MtAwcProof;
-using A3MtAProof = core::mta::A3MtAProof;
 using AuxRsaParams = core::paillier::AuxRsaParams;
 
 A2MtAwcProof ProveA2MtAwc(const MtaProofContext& ctx, const BigInt& n,

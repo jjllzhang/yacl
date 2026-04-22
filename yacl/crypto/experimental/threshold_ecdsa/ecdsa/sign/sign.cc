@@ -79,7 +79,7 @@ SignRound2Request ToProtocolRequest(const mta::PairwiseProductRequest& request) 
       .type = FromCoreMtaType(request.type),
       .instance_id = request.instance_id,
       .c1 = request.c1,
-      .a1_proof = request.a1_proof,
+      .a1_proof = proofs::FromCoreA1RangeProof(request.a1_proof),
   };
 }
 
@@ -90,7 +90,7 @@ mta::PairwiseProductRequest ToCoreRequest(const SignRound2Request& request) {
       .type = ToCoreMtaType(request.type),
       .instance_id = request.instance_id,
       .c1 = request.c1,
-      .a1_proof = request.a1_proof,
+      .a1_proof = proofs::ToCoreA1RangeProof(request.a1_proof),
   };
 }
 
@@ -102,8 +102,14 @@ SignRound2Response ToProtocolResponse(
       .type = FromCoreMtaType(response.type),
       .instance_id = response.instance_id,
       .c2 = response.c2,
-      .a2_proof = response.a2_proof,
-      .a3_proof = response.a3_proof,
+      .a2_proof = response.a2_proof
+                      ? std::make_optional(
+                            proofs::FromCoreA2MtAwcProof(*response.a2_proof))
+                      : std::nullopt,
+      .a3_proof = response.a3_proof
+                      ? std::make_optional(
+                            proofs::FromCoreA3MtAProof(*response.a3_proof))
+                      : std::nullopt,
   };
 }
 
@@ -114,8 +120,14 @@ mta::PairwiseProductResponse ToCoreResponse(const SignRound2Response& response) 
       .type = ToCoreMtaType(response.type),
       .instance_id = response.instance_id,
       .c2 = response.c2,
-      .a2_proof = response.a2_proof,
-      .a3_proof = response.a3_proof,
+      .a2_proof = response.a2_proof
+                      ? std::make_optional(
+                            proofs::ToCoreA2MtAwcProof(*response.a2_proof))
+                      : std::nullopt,
+      .a3_proof = response.a3_proof
+                      ? std::make_optional(
+                            proofs::ToCoreA3MtAProof(*response.a3_proof))
+                      : std::nullopt,
   };
 }
 

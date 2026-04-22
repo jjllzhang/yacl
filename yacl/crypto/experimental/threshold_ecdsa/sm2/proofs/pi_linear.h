@@ -17,13 +17,12 @@
 #include <memory>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/types.h"
 
 namespace tecdsa::sm2::proofs {
 
 using BigInt = core::paillier::BigInt;
 using MtaProofContext = core::mta::MtaProofContext;
-using PiLinearGroupProof = core::mta::A2MtAwcProof;
-using PiLinearProof = core::mta::A3MtAProof;
 using AuxRsaParams = core::paillier::AuxRsaParams;
 
 PiLinearGroupProof ProvePiLinearGroup(const MtaProofContext& ctx,

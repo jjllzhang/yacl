@@ -15,19 +15,9 @@
 #pragma once
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/types.h"
 
 namespace tecdsa::sm2::proofs {
-
-using PiGroupProof = core::proof::SchnorrProof;
-
-struct PiGroupRelationProof {
-  ECPoint a_g;
-  ECPoint a_h;
-  Scalar z;
-};
 
 PiGroupProof BuildPiGroupProof(const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,

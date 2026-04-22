@@ -443,12 +443,56 @@ bool VerifyPiLinear(const MtaProofContext& ctx, const BigInt& n,
 
 std::shared_ptr<const core::mta::ProofBackend> BuildSm2ProofBackend() {
   auto backend = std::make_shared<core::mta::ProofBackend>();
-  backend->prove_a1_range = &tecdsa::sm2::proofs::ProvePiRange;
-  backend->verify_a1_range = &tecdsa::sm2::proofs::VerifyPiRange;
-  backend->prove_a2_mtawc = &tecdsa::sm2::proofs::ProvePiLinearGroup;
-  backend->verify_a2_mtawc = &tecdsa::sm2::proofs::VerifyPiLinearGroup;
-  backend->prove_a3_mta = &tecdsa::sm2::proofs::ProvePiLinear;
-  backend->verify_a3_mta = &tecdsa::sm2::proofs::VerifyPiLinear;
+  backend->prove_a1_range =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c,
+         const BigInt& witness_m, const BigInt& witness_r) {
+        return tecdsa::sm2::proofs::ToCorePiRangeProof(
+            tecdsa::sm2::proofs::ProvePiRange(ctx, n, verifier_aux, c,
+                                              witness_m, witness_r));
+      };
+  backend->verify_a1_range =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c,
+         const core::mta::A1RangeProof& proof) {
+        return tecdsa::sm2::proofs::VerifyPiRange(ctx, n, verifier_aux, c,
+                                                  FromCorePiRangeProof(proof));
+      };
+  backend->prove_a2_mtawc =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const ECPoint& statement_x, const BigInt& witness_x,
+         const BigInt& witness_y, const BigInt& witness_r) {
+        return tecdsa::sm2::proofs::ToCorePiLinearGroupProof(
+            tecdsa::sm2::proofs::ProvePiLinearGroup(
+                ctx, n, verifier_aux, c1, c2, statement_x, witness_x,
+                witness_y, witness_r));
+      };
+  backend->verify_a2_mtawc =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const ECPoint& statement_x, const core::mta::A2MtAwcProof& proof) {
+        return tecdsa::sm2::proofs::VerifyPiLinearGroup(
+            ctx, n, verifier_aux, c1, c2, statement_x,
+            FromCorePiLinearGroupProof(proof));
+      };
+  backend->prove_a3_mta =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const BigInt& witness_x, const BigInt& witness_y,
+         const BigInt& witness_r) {
+        return tecdsa::sm2::proofs::ToCorePiLinearProof(
+            tecdsa::sm2::proofs::ProvePiLinear(ctx, n, verifier_aux, c1, c2,
+                                               witness_x, witness_y,
+                                               witness_r));
+      };
+  backend->verify_a3_mta =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const core::mta::A3MtAProof& proof) {
+        return tecdsa::sm2::proofs::VerifyPiLinear(ctx, n, verifier_aux, c1,
+                                                   c2, FromCorePiLinearProof(proof));
+      };
   return backend;
 }
 

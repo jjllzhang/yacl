@@ -438,12 +438,56 @@ bool VerifyA3MtA(const MtaProofContext& ctx, const BigInt& n,
 
 std::shared_ptr<const core::mta::ProofBackend> BuildGg19ProofBackend() {
   auto backend = std::make_shared<core::mta::ProofBackend>();
-  backend->prove_a1_range = &tecdsa::ecdsa::proofs::ProveA1Range;
-  backend->verify_a1_range = &tecdsa::ecdsa::proofs::VerifyA1Range;
-  backend->prove_a2_mtawc = &tecdsa::ecdsa::proofs::ProveA2MtAwc;
-  backend->verify_a2_mtawc = &tecdsa::ecdsa::proofs::VerifyA2MtAwc;
-  backend->prove_a3_mta = &tecdsa::ecdsa::proofs::ProveA3MtA;
-  backend->verify_a3_mta = &tecdsa::ecdsa::proofs::VerifyA3MtA;
+  backend->prove_a1_range =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c,
+         const BigInt& witness_m, const BigInt& witness_r) {
+        return tecdsa::ecdsa::proofs::ToCoreA1RangeProof(
+            tecdsa::ecdsa::proofs::ProveA1Range(ctx, n, verifier_aux, c,
+                                                witness_m, witness_r));
+      };
+  backend->verify_a1_range =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c,
+         const core::mta::A1RangeProof& proof) {
+        return tecdsa::ecdsa::proofs::VerifyA1Range(ctx, n, verifier_aux, c,
+                                                    FromCoreA1RangeProof(proof));
+      };
+  backend->prove_a2_mtawc =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const ECPoint& statement_x, const BigInt& witness_x,
+         const BigInt& witness_y, const BigInt& witness_r) {
+        return tecdsa::ecdsa::proofs::ToCoreA2MtAwcProof(
+            tecdsa::ecdsa::proofs::ProveA2MtAwc(
+                ctx, n, verifier_aux, c1, c2, statement_x, witness_x,
+                witness_y, witness_r));
+      };
+  backend->verify_a2_mtawc =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const ECPoint& statement_x, const core::mta::A2MtAwcProof& proof) {
+        return tecdsa::ecdsa::proofs::VerifyA2MtAwc(
+            ctx, n, verifier_aux, c1, c2, statement_x,
+            FromCoreA2MtAwcProof(proof));
+      };
+  backend->prove_a3_mta =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const BigInt& witness_x, const BigInt& witness_y,
+         const BigInt& witness_r) {
+        return tecdsa::ecdsa::proofs::ToCoreA3MtAProof(
+            tecdsa::ecdsa::proofs::ProveA3MtA(ctx, n, verifier_aux, c1, c2,
+                                              witness_x, witness_y,
+                                              witness_r));
+      };
+  backend->verify_a3_mta =
+      [](const MtaProofContext& ctx, const BigInt& n,
+         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
+         const core::mta::A3MtAProof& proof) {
+        return tecdsa::ecdsa::proofs::VerifyA3MtA(
+            ctx, n, verifier_aux, c1, c2, FromCoreA3MtAProof(proof));
+      };
   return backend;
 }
 
