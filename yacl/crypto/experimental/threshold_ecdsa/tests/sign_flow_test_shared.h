@@ -149,6 +149,7 @@ void TestStage6SignConstructorRejectsInvalidKeygenProofArtifacts();
 void TestStage6SignConstructorRejectsSignerCountMismatch();
 void TestStage6FinalizePreservesRawHighS();
 void TestStage6ProtocolSignCompatibilityAlias();
+void TestStageCProtocolProofCompatibilityAlias();
 void TestStage6MalformedPhase2InitProofPayloadAbortsResponder();
 void TestStage6MalformedPhase2ResponseProofPayloadAbortsInitiator();
 void TestStage4Phase2InitUsesResponderOwnedAuxParams();

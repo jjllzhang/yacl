@@ -58,3 +58,7 @@ struct A3MtAProof {
 };
 
 }  // namespace tecdsa::ecdsa::proofs
+
+// Keep adapter declarations transitively visible for callers that historically
+// included only types.h.
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/adapters.h"

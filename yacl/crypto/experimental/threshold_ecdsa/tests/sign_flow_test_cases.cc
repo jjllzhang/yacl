@@ -250,6 +250,106 @@ void TestStage6ProtocolSignCompatibilityAlias() {
          "ecdsa::verify::VerifyEcdsaSignatureMath must verify the final signature");
 }
 
+void TestStageCProtocolProofCompatibilityAlias() {
+  static_assert(
+      std::is_convertible_v<tecdsa::proto::A1RangeProof,
+                            decltype(tecdsa::proto::SignRound2Request{}.a1_proof)>);
+  static_assert(
+      std::is_convertible_v<
+          tecdsa::proto::A2MtAwcProof,
+          typename decltype(
+              tecdsa::proto::SignRound2Response{}.a2_proof)::value_type>);
+  static_assert(
+      std::is_convertible_v<
+          tecdsa::proto::A3MtAProof,
+          typename decltype(
+              tecdsa::proto::SignRound2Response{}.a3_proof)::value_type>);
+  static_assert(std::is_convertible_v<tecdsa::proto::A1RangeProof,
+                                      tecdsa::core::mta::A1RangeProof>);
+  static_assert(std::is_convertible_v<tecdsa::proto::A2MtAwcProof,
+                                      tecdsa::core::mta::A2MtAwcProof>);
+  static_assert(std::is_convertible_v<tecdsa::proto::A3MtAProof,
+                                      tecdsa::core::mta::A3MtAProof>);
+  static_assert(std::is_same_v<
+                tecdsa::proto::SchnorrProof,
+                decltype(tecdsa::proto::KeygenRound3Msg{}.proof)>);
+  static_assert(std::is_same_v<
+                tecdsa::proto::SchnorrProof,
+                decltype(tecdsa::proto::SignRound4Msg{}.gamma_proof)>);
+  static_assert(std::is_same_v<
+                tecdsa::proto::SchnorrProof,
+                decltype(tecdsa::proto::SignRound5BMsg{}.a_schnorr_proof)>);
+
+  tecdsa::proto::A1RangeProof a1{
+      .z = BigInt(11),
+      .u = BigInt(12),
+      .w = BigInt(13),
+      .s = BigInt(14),
+      .s1 = BigInt(15),
+      .s2 = BigInt(16),
+  };
+  tecdsa::proto::A2MtAwcProof a2{
+      .u = ECPoint::GeneratorMultiply(Scalar::FromUint64(3)),
+      .z = BigInt(21),
+      .z2 = BigInt(22),
+      .t = BigInt(23),
+      .v = BigInt(24),
+      .w = BigInt(25),
+      .s = BigInt(26),
+      .s1 = BigInt(27),
+      .s2 = BigInt(28),
+      .t1 = BigInt(29),
+      .t2 = BigInt(30),
+  };
+  tecdsa::proto::A3MtAProof a3{
+      .z = BigInt(31),
+      .z2 = BigInt(32),
+      .t = BigInt(33),
+      .v = BigInt(34),
+      .w = BigInt(35),
+      .s = BigInt(36),
+      .s1 = BigInt(37),
+      .s2 = BigInt(38),
+      .t1 = BigInt(39),
+      .t2 = BigInt(40),
+  };
+
+  tecdsa::proto::SignRound2Request request{
+      .from = 1,
+      .to = 2,
+      .type = tecdsa::proto::MtaType::kTimesGamma,
+      .instance_id = Bytes{0xC3, 0x02, 0x01},
+      .c1 = BigInt(17),
+      .a1_proof = a1,
+  };
+  tecdsa::proto::SignRound2Response response{
+      .from = 2,
+      .to = 1,
+      .type = tecdsa::proto::MtaType::kTimesGamma,
+      .instance_id = Bytes{0xC3, 0x02, 0x01},
+      .c2 = BigInt(18),
+      .a2_proof = a2,
+      .a3_proof = a3,
+  };
+
+  Expect(request.a1_proof.s2 == a1.s2,
+         "proto::A1RangeProof must populate SignRound2Request directly");
+  Expect(response.a2_proof.has_value() && response.a2_proof->t2 == a2.t2,
+         "proto::A2MtAwcProof must populate SignRound2Response directly");
+  Expect(response.a3_proof.has_value() && response.a3_proof->t2 == a3.t2,
+         "proto::A3MtAProof must populate SignRound2Response directly");
+
+  const tecdsa::core::mta::A1RangeProof core_a1 = a1;
+  const tecdsa::core::mta::A2MtAwcProof core_a2 = a2;
+  const tecdsa::core::mta::A3MtAProof core_a3 = a3;
+  Expect(core_a1.s2 == a1.s2,
+         "proto::A1RangeProof must remain convertible to core::mta::A1RangeProof");
+  Expect(core_a2.t2 == a2.t2,
+         "proto::A2MtAwcProof must remain convertible to core::mta::A2MtAwcProof");
+  Expect(core_a3.t2 == a3.t2,
+         "proto::A3MtAProof must remain convertible to core::mta::A3MtAProof");
+}
+
 void TestStage6MalformedPhase2InitProofPayloadAbortsResponder() {
   const auto keygen_results =
       RunKeygenAndCollectResults(/*n=*/3, /*t=*/1, Bytes{0xE0, 0x03, 0x01});

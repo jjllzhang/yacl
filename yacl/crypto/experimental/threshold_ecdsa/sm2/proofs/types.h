@@ -70,3 +70,7 @@ struct PiGroupRelationProof {
 };
 
 }  // namespace tecdsa::sm2::proofs
+
+// Keep adapter declarations transitively visible for callers that historically
+// included only types.h.
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/adapters.h"
