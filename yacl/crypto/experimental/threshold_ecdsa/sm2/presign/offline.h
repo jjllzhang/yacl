@@ -19,10 +19,10 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/keygen/keygen.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 
 namespace tecdsa::sm2::presign {
@@ -42,8 +42,8 @@ struct Round1Msg {
   Bytes commitment;
 };
 
-using Round2Request = tecdsa::core::mta::PairwiseProductRequest;
-using Round2Response = tecdsa::core::mta::PairwiseProductResponse;
+using Round2Request = tecdsa::sm2::messages::PairwiseProductRequest;
+using Round2Response = tecdsa::sm2::messages::PairwiseProductResponse;
 
 struct Round3Msg {
   ECPoint K_i;

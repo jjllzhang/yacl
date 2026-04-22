@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/session.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
@@ -28,6 +27,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_sqr.h"
@@ -69,8 +69,8 @@ struct KeygenRound2Out {
   PeerMap<Scalar> shares_for_peers;
 };
 
-using KeygenRound3Request = tecdsa::core::mta::PairwiseProductRequest;
-using KeygenRound3Response = tecdsa::core::mta::PairwiseProductResponse;
+using KeygenRound3Request = tecdsa::sm2::messages::PairwiseProductRequest;
+using KeygenRound3Response = tecdsa::sm2::messages::PairwiseProductResponse;
 
 struct KeygenRound4Msg {
   Scalar sigma_i;

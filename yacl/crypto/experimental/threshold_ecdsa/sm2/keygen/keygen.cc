@@ -37,6 +37,7 @@ namespace tecdsa::sm2::keygen {
 namespace {
 
 namespace mta = tecdsa::core::mta;
+namespace messages = tecdsa::sm2::messages;
 namespace paillier = tecdsa::core::paillier;
 
 constexpr uint32_t kMinPaillierKeygenBits = 2048;
@@ -350,13 +351,14 @@ std::vector<KeygenRound3Request> KeygenParty::MakeRound3Requests(
   local_ZGamma_i_ = global_Z_.Mul(local_gamma_i_);
 
   for (PartyIndex peer : peers_) {
-    round3_requests_.push_back(sigma_session_.CreateRequest({
+    round3_requests_.push_back(messages::FromCoreRequest(
+        sigma_session_.CreateRequest({
         .responder_id = peer,
         .type = mta::MtaType::kMta,
         .initiator_paillier = local_paillier_.get(),
         .responder_aux = &all_aux_rsa_params_.at(peer),
         .initiator_secret = local_gamma_i_,
-    }));
+    })));
   }
   return round3_requests_;
 }
@@ -397,14 +399,14 @@ KeygenParty::TryMakeRound3Responses(
   for (const auto& request : requests_for_self) {
     try {
       const auto consume = sigma_session_.ConsumeRequest(
-          request,
+          messages::ToCoreRequest(request),
           {.initiator_modulus_n = all_paillier_public_.at(request.from).n,
            .responder_aux = &all_aux_rsa_params_.at(cfg_.self_id),
            .initiator_aux = &all_aux_rsa_params_.at(request.from),
            .responder_secret = local_secret_z_i_,
            .public_witness_point = std::nullopt});
       responder_sum = responder_sum + consume.responder_share;
-      out.push_back(consume.response);
+      out.push_back(messages::FromCoreResponse(consume.response));
     } catch (const std::exception& ex) {
       return {.value = std::nullopt,
               .abort = detection::MakeIdentifiableAbort(
@@ -432,7 +434,7 @@ KeygenRound4Msg KeygenParty::MakeRound4(
 
   for (const auto& response : responses_for_self) {
     const auto consume = sigma_session_.ConsumeResponse(
-        response,
+        messages::ToCoreResponse(response),
         {.initiator_paillier = local_paillier_.get(),
          .initiator_aux = &all_aux_rsa_params_.at(cfg_.self_id),
          .public_witness_point = std::nullopt});
