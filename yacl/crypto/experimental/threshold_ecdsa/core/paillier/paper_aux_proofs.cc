@@ -29,8 +29,8 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs_internal.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_setup.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/transcript/transcript.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/hash.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/bigint/bigint_utils.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 
 namespace tecdsa::core::paillier {
 namespace {

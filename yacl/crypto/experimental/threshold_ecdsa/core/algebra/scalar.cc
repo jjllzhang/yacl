@@ -18,7 +18,7 @@
 #include <utility>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/bigint_utils.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/bigint/bigint_utils.h"
 
 namespace tecdsa::core {
 namespace {

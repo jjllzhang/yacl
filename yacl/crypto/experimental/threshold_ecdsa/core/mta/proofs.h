@@ -20,10 +20,10 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/point.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::core::mta {
 

@@ -18,7 +18,7 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/byte_io.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/random.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/random/csprng.h"
 
 namespace tecdsa::core::commitment {
 namespace {

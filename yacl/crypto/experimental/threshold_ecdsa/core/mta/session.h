@@ -23,13 +23,15 @@
 #include <unordered_set>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::core::mta {
+
+using PaillierProvider = core::paillier::PaillierProvider;
+using PaillierCiphertextWithRandomBigInt =
+    core::paillier::PaillierCiphertextWithRandomBigInt;
 
 Bytes RandomMtaInstanceId();
 std::string BytesToKey(const Bytes& bytes);

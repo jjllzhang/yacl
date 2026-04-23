@@ -20,14 +20,20 @@ TECDSA_COPTS = ["-std=gnu++20"]
 
 TSIG_CORE_SRCS = glob([
     "core/**/*.cc",
-    "crypto/*.cc",
-], exclude = [
-    "crypto/ecdsa_verify.cc",
 ])
 
 TSIG_CORE_HDRS = glob([
     "common/*.h",
     "core/**/*.h",
+])
+
+TSIG_COMPAT_SRCS = glob([
+    "crypto/*.cc",
+], exclude = [
+    "crypto/ecdsa_verify.cc",
+])
+
+TSIG_COMPAT_HDRS = glob([
     "crypto/*.h",
 ], exclude = [
     "crypto/ecdsa_verify.h",
@@ -71,12 +77,23 @@ yacl_cc_library(
 )
 
 yacl_cc_library(
+    name = "tsig_compat",
+    srcs = TSIG_COMPAT_SRCS,
+    hdrs = TSIG_COMPAT_HDRS,
+    copts = TECDSA_COPTS,
+    deps = [
+        ":tsig_core",
+    ],
+)
+
+yacl_cc_library(
     name = "tsig_ecdsa",
     srcs = TSIG_ECDSA_SRCS,
     hdrs = TSIG_ECDSA_HDRS,
     copts = TECDSA_COPTS,
     deps = [
         ":tsig_core",
+        ":tsig_compat",
     ],
 )
 
@@ -91,6 +108,7 @@ yacl_cc_library(
     copts = TECDSA_COPTS,
     deps = [
         ":tsig_core",
+        ":tsig_compat",
     ],
 )
 

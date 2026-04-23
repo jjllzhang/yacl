@@ -1136,6 +1136,8 @@ void TestEcdsaVerifyRegression() {
 
 void TestHashAndCommitment() {
   const Bytes msg = {'a', 'b', 'c'};
+  const Bytes digest_via_core =
+      tecdsa::core::Hash(tecdsa::HashId::kSha256, msg);
   const Bytes digest_via_suite = tecdsa::Hash(tecdsa::HashId::kSha256, msg);
   const Bytes digest = Sha256(msg);
   const Bytes expected = {0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
@@ -1143,6 +1145,8 @@ void TestHashAndCommitment() {
                           0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
                           0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad};
   Expect(digest == expected, "SHA256 must match known test vector for 'abc'");
+  Expect(digest_via_core == expected,
+         "core hash owner must match SHA256 test vector");
   Expect(digest_via_suite == expected,
          "suite-driven hash helper must match SHA256 test vector");
 

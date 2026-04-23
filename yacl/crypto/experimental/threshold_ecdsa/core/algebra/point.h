@@ -50,4 +50,6 @@ class Point {
   std::array<uint8_t, 33> compressed_{};
 };
 
+using ECPoint = Point;
+
 }  // namespace tecdsa::core

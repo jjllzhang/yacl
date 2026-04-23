@@ -17,8 +17,8 @@
 #include <concepts>
 #include <type_traits>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/point.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/algebra/scalar.h"
 
 namespace tecdsa::core::proof {
 
