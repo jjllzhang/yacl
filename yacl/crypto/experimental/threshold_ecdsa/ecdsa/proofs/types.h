@@ -14,49 +14,16 @@
 
 #pragma once
 
-#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::ecdsa::proofs {
 
 using BigInt = core::paillier::BigInt;
-
-struct A1RangeProof {
-  BigInt z = BigInt(0);
-  BigInt u = BigInt(0);
-  BigInt w = BigInt(0);
-  BigInt s = BigInt(0);
-  BigInt s1 = BigInt(0);
-  BigInt s2 = BigInt(0);
-};
-
-struct A2MtAwcProof {
-  ECPoint u;
-  BigInt z = BigInt(0);
-  BigInt z2 = BigInt(0);
-  BigInt t = BigInt(0);
-  BigInt v = BigInt(0);
-  BigInt w = BigInt(0);
-  BigInt s = BigInt(0);
-  BigInt s1 = BigInt(0);
-  BigInt s2 = BigInt(0);
-  BigInt t1 = BigInt(0);
-  BigInt t2 = BigInt(0);
-};
-
-struct A3MtAProof {
-  BigInt z = BigInt(0);
-  BigInt z2 = BigInt(0);
-  BigInt t = BigInt(0);
-  BigInt v = BigInt(0);
-  BigInt w = BigInt(0);
-  BigInt s = BigInt(0);
-  BigInt s1 = BigInt(0);
-  BigInt s2 = BigInt(0);
-  BigInt t1 = BigInt(0);
-  BigInt t2 = BigInt(0);
-};
+using A1RangeProof = core::mta::A1RangeProof;
+using A2MtAwcProof = core::mta::A2MtAwcProof;
+using A3MtAProof = core::mta::A3MtAProof;
 
 struct SchnorrProof {
   ECPoint a;

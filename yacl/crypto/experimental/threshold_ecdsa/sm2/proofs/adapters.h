@@ -20,16 +20,28 @@
 
 namespace tecdsa::sm2::proofs {
 
-PiRangeProof FromCorePiRangeProof(const core::mta::A1RangeProof& proof);
-core::mta::A1RangeProof ToCorePiRangeProof(const PiRangeProof& proof);
+inline PiRangeProof FromCorePiRangeProof(const core::mta::A1RangeProof& proof) {
+  return proof;
+}
+inline core::mta::A1RangeProof ToCorePiRangeProof(const PiRangeProof& proof) {
+  return proof;
+}
 
-PiLinearGroupProof FromCorePiLinearGroupProof(
-    const core::mta::A2MtAwcProof& proof);
-core::mta::A2MtAwcProof ToCorePiLinearGroupProof(
-    const PiLinearGroupProof& proof);
+inline PiLinearGroupProof FromCorePiLinearGroupProof(
+    const core::mta::A2MtAwcProof& proof) {
+  return proof;
+}
+inline core::mta::A2MtAwcProof ToCorePiLinearGroupProof(
+    const PiLinearGroupProof& proof) {
+  return proof;
+}
 
-PiLinearProof FromCorePiLinearProof(const core::mta::A3MtAProof& proof);
-core::mta::A3MtAProof ToCorePiLinearProof(const PiLinearProof& proof);
+inline PiLinearProof FromCorePiLinearProof(const core::mta::A3MtAProof& proof) {
+  return proof;
+}
+inline core::mta::A3MtAProof ToCorePiLinearProof(const PiLinearProof& proof) {
+  return proof;
+}
 
 PiGroupProof FromCorePiGroupProof(const core::proof::SchnorrProof& proof);
 core::proof::SchnorrProof ToCorePiGroupProof(const PiGroupProof& proof);

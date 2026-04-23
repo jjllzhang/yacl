@@ -282,12 +282,12 @@ void TestStageCProtocolProofCompatibilityAlias() {
                 decltype(tecdsa::proto::SignRound5BMsg{}.a_schnorr_proof)>);
   static_assert(std::is_same_v<tecdsa::proto::SchnorrProof,
                                tecdsa::ecdsa::proofs::SchnorrProof>);
-  static_assert(!std::is_convertible_v<tecdsa::proto::A1RangeProof,
-                                       tecdsa::core::mta::A1RangeProof>);
-  static_assert(!std::is_convertible_v<tecdsa::proto::A2MtAwcProof,
-                                       tecdsa::core::mta::A2MtAwcProof>);
-  static_assert(!std::is_convertible_v<tecdsa::proto::A3MtAProof,
-                                       tecdsa::core::mta::A3MtAProof>);
+  static_assert(
+      std::is_same_v<tecdsa::proto::A1RangeProof, tecdsa::core::mta::A1RangeProof>);
+  static_assert(std::is_same_v<tecdsa::proto::A2MtAwcProof,
+                               tecdsa::core::mta::A2MtAwcProof>);
+  static_assert(
+      std::is_same_v<tecdsa::proto::A3MtAProof, tecdsa::core::mta::A3MtAProof>);
   static_assert(!std::is_same_v<tecdsa::proto::SchnorrProof,
                                 tecdsa::core::proof::SchnorrProof>);
 

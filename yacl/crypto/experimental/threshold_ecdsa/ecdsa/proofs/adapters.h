@@ -20,14 +20,28 @@
 
 namespace tecdsa::ecdsa::proofs {
 
-A1RangeProof FromCoreA1RangeProof(const core::mta::A1RangeProof& proof);
-core::mta::A1RangeProof ToCoreA1RangeProof(const A1RangeProof& proof);
+inline A1RangeProof FromCoreA1RangeProof(const core::mta::A1RangeProof& proof) {
+  return proof;
+}
+inline core::mta::A1RangeProof ToCoreA1RangeProof(const A1RangeProof& proof) {
+  return proof;
+}
 
-A2MtAwcProof FromCoreA2MtAwcProof(const core::mta::A2MtAwcProof& proof);
-core::mta::A2MtAwcProof ToCoreA2MtAwcProof(const A2MtAwcProof& proof);
+inline A2MtAwcProof FromCoreA2MtAwcProof(
+    const core::mta::A2MtAwcProof& proof) {
+  return proof;
+}
+inline core::mta::A2MtAwcProof ToCoreA2MtAwcProof(
+    const A2MtAwcProof& proof) {
+  return proof;
+}
 
-A3MtAProof FromCoreA3MtAProof(const core::mta::A3MtAProof& proof);
-core::mta::A3MtAProof ToCoreA3MtAProof(const A3MtAProof& proof);
+inline A3MtAProof FromCoreA3MtAProof(const core::mta::A3MtAProof& proof) {
+  return proof;
+}
+inline core::mta::A3MtAProof ToCoreA3MtAProof(const A3MtAProof& proof) {
+  return proof;
+}
 
 SchnorrProof FromCoreSchnorrProof(const core::proof::SchnorrProof& proof);
 core::proof::SchnorrProof ToCoreSchnorrProof(const SchnorrProof& proof);
