@@ -18,6 +18,7 @@
 #include <exception>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
@@ -26,10 +27,6 @@
 
 namespace tecdsa::core::mta {
 namespace {
-
-constexpr char kA1RangeProofName[] = "A1Range";
-constexpr char kA2MtAwcProofName[] = "A2MtAwc";
-constexpr char kA3MtAProofName[] = "A3MtA";
 
 BigInt NormalizeMod(const BigInt& value, const BigInt& modulus) {
   return bigint::NormalizeMod(value, modulus);
@@ -58,8 +55,9 @@ BigInt QPow3(const MtaProofContext& ctx) { return QPow(ctx.group->order(), 3); }
 
 BigInt QPow7(const MtaProofContext& ctx) { return QPow(ctx.group->order(), 7); }
 
-std::string BuildProofId(const MtaProofContext& ctx, const char* proof_name) {
-  return ctx.proof_domain_prefix + "/" + proof_name + "/v1";
+std::string BuildProofId(const MtaProofContext& ctx,
+                         std::string_view proof_name) {
+  return ctx.proof_domain_prefix + "/" + std::string(proof_name) + "/v1";
 }
 
 Bytes CurveNameBytes(const MtaProofContext& ctx) {
@@ -74,7 +72,7 @@ Bytes ModulusQBytes(const MtaProofContext& ctx) {
 }
 
 void AppendCommonMtaTranscriptFields(core::transcript::Transcript* transcript,
-                                     const char* proof_name,
+                                     std::string_view proof_name,
                                      const MtaProofContext& ctx) {
   const std::string proof_id = BuildProofId(ctx, proof_name);
   transcript->append_proof_id(proof_id);
@@ -96,7 +94,7 @@ Scalar BuildA1RangeChallenge(const MtaProofContext& ctx, const BigInt& n,
                              const BigInt& c, const BigInt& z, const BigInt& u,
                              const BigInt& w) {
   core::transcript::Transcript transcript(ctx.transcript_hash);
-  AppendCommonMtaTranscriptFields(&transcript, kA1RangeProofName, ctx);
+  AppendCommonMtaTranscriptFields(&transcript, ctx.proof_names.a1_range, ctx);
   const Bytes n_bytes = core::encoding::EncodeMpInt(n);
   const Bytes gamma_bytes = core::encoding::EncodeMpInt(gamma);
   const Bytes n_tilde_bytes = core::encoding::EncodeMpInt(aux.n_tilde);
@@ -128,7 +126,7 @@ Scalar BuildA2MtAwcChallenge(const MtaProofContext& ctx, const BigInt& n,
                              const ECPoint& statement_x,
                              const A2MtAwcProof& proof) {
   core::transcript::Transcript transcript(ctx.transcript_hash);
-  AppendCommonMtaTranscriptFields(&transcript, kA2MtAwcProofName, ctx);
+  AppendCommonMtaTranscriptFields(&transcript, ctx.proof_names.a2_mtawc, ctx);
   const Bytes n_bytes = core::encoding::EncodeMpInt(n);
   const Bytes gamma_bytes = core::encoding::EncodeMpInt(gamma);
   const Bytes n_tilde_bytes = core::encoding::EncodeMpInt(aux.n_tilde);
@@ -169,7 +167,7 @@ Scalar BuildA3MtAChallenge(const MtaProofContext& ctx, const BigInt& n,
                            const BigInt& c1, const BigInt& c2,
                            const A3MtAProof& proof) {
   core::transcript::Transcript transcript(ctx.transcript_hash);
-  AppendCommonMtaTranscriptFields(&transcript, kA3MtAProofName, ctx);
+  AppendCommonMtaTranscriptFields(&transcript, ctx.proof_names.a3_mta, ctx);
   const Bytes n_bytes = core::encoding::EncodeMpInt(n);
   const Bytes gamma_bytes = core::encoding::EncodeMpInt(gamma);
   const Bytes n_tilde_bytes = core::encoding::EncodeMpInt(aux.n_tilde);
@@ -220,6 +218,7 @@ MtaProofContext BuildProofContext(const Bytes& session_id,
       .transcript_hash = suite.transcript_hash,
       .group = std::move(group),
       .proof_domain_prefix = suite.proof_domain_prefix,
+      .proof_names = MtaProofNames{},
   };
 }
 

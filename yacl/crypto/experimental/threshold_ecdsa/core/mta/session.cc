@@ -68,46 +68,66 @@ void ValidatePublicWitnessPointPresenceOrThrow(
   }
 }
 
-std::shared_ptr<const ProofBackend> MakeDefaultProofBackend() {
+MtaProofContext ApplyProofNames(const MtaProofContext& ctx,
+                                const MtaProofNames& proof_names) {
+  auto named_ctx = ctx;
+  named_ctx.proof_names = proof_names;
+  return named_ctx;
+}
+
+std::shared_ptr<const ProofBackend> MakeProofBackend(
+    const MtaProofNames& proof_names) {
   auto backend = std::make_shared<ProofBackend>();
-  backend->prove_a1_range = [](const MtaProofContext& ctx, const BigInt& n,
-                               const AuxRsaParams& verifier_aux,
-                               const BigInt& c, const BigInt& witness_m,
-                               const BigInt& witness_r) {
-    return ProveA1Range(ctx, n, verifier_aux, c, witness_m, witness_r);
+  backend->prove_a1_range = [proof_names](const MtaProofContext& ctx,
+                                          const BigInt& n,
+                                          const AuxRsaParams& verifier_aux,
+                                          const BigInt& c,
+                                          const BigInt& witness_m,
+                                          const BigInt& witness_r) {
+    return ProveA1Range(ApplyProofNames(ctx, proof_names), n, verifier_aux, c,
+                        witness_m, witness_r);
   };
-  backend->verify_a1_range = [](const MtaProofContext& ctx, const BigInt& n,
-                                const AuxRsaParams& verifier_aux,
-                                const BigInt& c, const A1RangeProof& proof) {
-    return VerifyA1Range(ctx, n, verifier_aux, c, proof);
+  backend->verify_a1_range = [proof_names](const MtaProofContext& ctx,
+                                           const BigInt& n,
+                                           const AuxRsaParams& verifier_aux,
+                                           const BigInt& c,
+                                           const A1RangeProof& proof) {
+    return VerifyA1Range(ApplyProofNames(ctx, proof_names), n, verifier_aux, c,
+                         proof);
   };
   backend->prove_a2_mtawc =
-      [](const MtaProofContext& ctx, const BigInt& n,
-         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
-         const ECPoint& statement_x, const BigInt& witness_x,
-         const BigInt& witness_y, const BigInt& witness_r) {
-        return ProveA2MtAwc(ctx, n, verifier_aux, c1, c2, statement_x,
-                            witness_x, witness_y, witness_r);
+      [proof_names](const MtaProofContext& ctx, const BigInt& n,
+                    const AuxRsaParams& verifier_aux, const BigInt& c1,
+                    const BigInt& c2, const ECPoint& statement_x,
+                    const BigInt& witness_x, const BigInt& witness_y,
+                    const BigInt& witness_r) {
+        return ProveA2MtAwc(ApplyProofNames(ctx, proof_names), n,
+                            verifier_aux, c1, c2, statement_x, witness_x,
+                            witness_y, witness_r);
       };
   backend->verify_a2_mtawc =
-      [](const MtaProofContext& ctx, const BigInt& n,
-         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
-         const ECPoint& statement_x, const A2MtAwcProof& proof) {
-        return VerifyA2MtAwc(ctx, n, verifier_aux, c1, c2, statement_x, proof);
+      [proof_names](const MtaProofContext& ctx, const BigInt& n,
+                    const AuxRsaParams& verifier_aux, const BigInt& c1,
+                    const BigInt& c2, const ECPoint& statement_x,
+                    const A2MtAwcProof& proof) {
+        return VerifyA2MtAwc(ApplyProofNames(ctx, proof_names), n,
+                             verifier_aux, c1, c2, statement_x, proof);
       };
   backend->prove_a3_mta =
-      [](const MtaProofContext& ctx, const BigInt& n,
-         const AuxRsaParams& verifier_aux, const BigInt& c1, const BigInt& c2,
-         const BigInt& witness_x, const BigInt& witness_y,
-         const BigInt& witness_r) {
-        return ProveA3MtA(ctx, n, verifier_aux, c1, c2, witness_x, witness_y,
-                          witness_r);
+      [proof_names](const MtaProofContext& ctx, const BigInt& n,
+                    const AuxRsaParams& verifier_aux, const BigInt& c1,
+                    const BigInt& c2, const BigInt& witness_x,
+                    const BigInt& witness_y, const BigInt& witness_r) {
+        return ProveA3MtA(ApplyProofNames(ctx, proof_names), n, verifier_aux,
+                          c1, c2, witness_x, witness_y, witness_r);
       };
-  backend->verify_a3_mta = [](const MtaProofContext& ctx, const BigInt& n,
-                              const AuxRsaParams& verifier_aux,
-                              const BigInt& c1, const BigInt& c2,
-                              const A3MtAProof& proof) {
-    return VerifyA3MtA(ctx, n, verifier_aux, c1, c2, proof);
+  backend->verify_a3_mta = [proof_names](const MtaProofContext& ctx,
+                                         const BigInt& n,
+                                         const AuxRsaParams& verifier_aux,
+                                         const BigInt& c1, const BigInt& c2,
+                                         const A3MtAProof& proof) {
+    return VerifyA3MtA(ApplyProofNames(ctx, proof_names), n, verifier_aux, c1,
+                       c2, proof);
   };
   return backend;
 }
@@ -115,7 +135,7 @@ std::shared_ptr<const ProofBackend> MakeDefaultProofBackend() {
 }  // namespace
 
 std::shared_ptr<const ProofBackend> BuildDefaultProofBackend() {
-  static const auto backend = MakeDefaultProofBackend();
+  static const auto backend = MakeProofBackend(MtaProofNames{});
   return backend;
 }
 

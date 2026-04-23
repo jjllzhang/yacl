@@ -32,6 +32,12 @@ using AuxRsaParams = core::paillier::AuxRsaParams;
 
 inline constexpr size_t kMtaInstanceIdLen = 16;
 
+struct MtaProofNames {
+  std::string a1_range = "A1Range";
+  std::string a2_mtawc = "A2MtAwc";
+  std::string a3_mta = "A3MtA";
+};
+
 struct MtaProofContext {
   Bytes session_id;
   PartyIndex initiator_id = 0;
@@ -40,6 +46,7 @@ struct MtaProofContext {
   HashId transcript_hash = HashId::kSha256;
   std::shared_ptr<const GroupContext> group;
   std::string proof_domain_prefix = "GG2019";
+  MtaProofNames proof_names;
 };
 
 MtaProofContext BuildProofContext(const Bytes& session_id,
