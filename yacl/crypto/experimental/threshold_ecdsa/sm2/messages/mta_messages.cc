@@ -12,18 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages_internal.h"
 
+#include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/adapters.h"
 
-namespace tecdsa::sm2::messages {
+namespace tecdsa::sm2::messages::internal {
+
+namespace {
+
+MtaType ToSchemeMtaType(core::mta::MtaType type) {
+  switch (type) {
+    case core::mta::MtaType::kMta:
+      return MtaType::kMta;
+    case core::mta::MtaType::kMtAwc:
+      return MtaType::kMtAwc;
+  }
+  TECDSA_THROW_ARGUMENT("unknown core::mta::MtaType");
+}
+
+core::mta::MtaType ToCoreMtaType(MtaType type) {
+  switch (type) {
+    case MtaType::kMta:
+      return core::mta::MtaType::kMta;
+    case MtaType::kMtAwc:
+      return core::mta::MtaType::kMtAwc;
+  }
+  TECDSA_THROW_ARGUMENT("unknown sm2::messages::MtaType");
+}
+
+}  // namespace
 
 PairwiseProductRequest FromCoreRequest(
     const core::mta::PairwiseProductRequest& request) {
   return PairwiseProductRequest{
       .from = request.from,
       .to = request.to,
-      .type = request.type,
+      .type = ToSchemeMtaType(request.type),
       .instance_id = request.instance_id,
       .c1 = request.c1,
       .a1_proof = proofs::FromCorePiRangeProof(request.a1_proof),
@@ -35,7 +60,7 @@ core::mta::PairwiseProductRequest ToCoreRequest(
   return core::mta::PairwiseProductRequest{
       .from = request.from,
       .to = request.to,
-      .type = request.type,
+      .type = ToCoreMtaType(request.type),
       .instance_id = request.instance_id,
       .c1 = request.c1,
       .a1_proof = proofs::ToCorePiRangeProof(request.a1_proof),
@@ -47,7 +72,7 @@ PairwiseProductResponse FromCoreResponse(
   return PairwiseProductResponse{
       .from = response.from,
       .to = response.to,
-      .type = response.type,
+      .type = ToSchemeMtaType(response.type),
       .instance_id = response.instance_id,
       .c2 = response.c2,
       .a2_proof = response.a2_proof
@@ -66,7 +91,7 @@ core::mta::PairwiseProductResponse ToCoreResponse(
   return core::mta::PairwiseProductResponse{
       .from = response.from,
       .to = response.to,
-      .type = response.type,
+      .type = ToCoreMtaType(response.type),
       .instance_id = response.instance_id,
       .c2 = response.c2,
       .a2_proof = response.a2_proof
@@ -80,4 +105,4 @@ core::mta::PairwiseProductResponse ToCoreResponse(
   };
 }
 
-}  // namespace tecdsa::sm2::messages
+}  // namespace tecdsa::sm2::messages::internal

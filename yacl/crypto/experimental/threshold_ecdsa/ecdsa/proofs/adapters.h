@@ -15,6 +15,7 @@
 #pragma once
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/types.h"
 
 namespace tecdsa::ecdsa::proofs {
@@ -27,5 +28,8 @@ core::mta::A2MtAwcProof ToCoreA2MtAwcProof(const A2MtAwcProof& proof);
 
 A3MtAProof FromCoreA3MtAProof(const core::mta::A3MtAProof& proof);
 core::mta::A3MtAProof ToCoreA3MtAProof(const A3MtAProof& proof);
+
+SchnorrProof FromCoreSchnorrProof(const core::proof::SchnorrProof& proof);
+core::proof::SchnorrProof ToCoreSchnorrProof(const SchnorrProof& proof);
 
 }  // namespace tecdsa::ecdsa::proofs

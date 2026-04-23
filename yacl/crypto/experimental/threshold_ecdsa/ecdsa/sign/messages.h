@@ -20,12 +20,12 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_affine.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_range.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
 
 namespace tecdsa::ecdsa::sign {
@@ -68,7 +68,7 @@ struct SignRound3Msg {
 struct SignRound4Msg {
   ECPoint gamma_i;
   Bytes randomness;
-  core::proof::SchnorrProof gamma_proof;
+  proofs::SchnorrProof gamma_proof;
 };
 
 struct SignRound5AMsg {
@@ -79,7 +79,7 @@ struct SignRound5BMsg {
   ECPoint V_i;
   ECPoint A_i;
   Bytes randomness;
-  core::proof::SchnorrProof a_schnorr_proof;
+  proofs::SchnorrProof a_schnorr_proof;
   VRelationProof v_relation_proof;
 };
 

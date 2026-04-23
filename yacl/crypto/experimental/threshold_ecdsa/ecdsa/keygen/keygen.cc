@@ -30,6 +30,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/adapters.h"
 
 namespace tecdsa::ecdsa::keygen {
 namespace {
@@ -296,9 +297,10 @@ KeygenRound3Msg KeygenParty::MakeRound3(
   const ECPoint X_i = ECPoint::GeneratorMultiply(local_x_i_);
   round3_ = KeygenRound3Msg{
       .X_i = X_i,
-      .proof = core::proof::BuildSchnorrProof(core::DefaultEcdsaSuite(),
-                                              cfg_.session_id, cfg_.self_id,
-                                              X_i, local_x_i_),
+      .proof = tecdsa::ecdsa::proofs::FromCoreSchnorrProof(
+          core::proof::BuildSchnorrProof(core::DefaultEcdsaSuite(),
+                                         cfg_.session_id, cfg_.self_id, X_i,
+                                         local_x_i_)),
       .square_free_proof = local_square_free_proof_,
   };
   return *round3_;
@@ -328,7 +330,8 @@ KeygenOutput KeygenParty::Finalize(const PeerMap<KeygenRound3Msg>& peer_round3) 
     const KeygenRound3Msg& msg = peer_round3.at(peer);
     if (!core::proof::VerifySchnorrProof(core::DefaultEcdsaSuite(),
                                          cfg_.session_id, peer, msg.X_i,
-                                         msg.proof)) {
+                                         tecdsa::ecdsa::proofs::ToCoreSchnorrProof(
+                                             msg.proof))) {
       TECDSA_THROW_ARGUMENT("peer Schnorr proof verification failed");
     }
     const auto pk_it = all_paillier_public_.find(peer);

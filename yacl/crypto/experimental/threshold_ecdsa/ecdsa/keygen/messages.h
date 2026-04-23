@@ -22,10 +22,10 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/types.h"
 
 namespace tecdsa::ecdsa::keygen {
 
@@ -56,7 +56,7 @@ struct KeygenRound2Out {
 
 struct KeygenRound3Msg {
   ECPoint X_i;
-  core::proof::SchnorrProof proof;
+  tecdsa::ecdsa::proofs::SchnorrProof proof;
   SquareFreeProof square_free_proof;
 };
 

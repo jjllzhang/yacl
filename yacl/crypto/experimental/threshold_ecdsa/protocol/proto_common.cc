@@ -14,6 +14,9 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/protocol/proto_common.h"
 
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/adapters.h"
+
 namespace tecdsa::proto {
 
 void ValidateParticipantsOrThrow(const std::vector<PartyIndex>& participants,
@@ -49,14 +52,16 @@ core::paillier::StrictProofVerifierContext BuildProofContext(
 SchnorrProof BuildSchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                                const ECPoint& statement,
                                const Scalar& witness) {
-  return core::proof::BuildSchnorrProof(core::DefaultEcdsaSuite(), session_id,
-                                        prover_id, statement, witness);
+  return ecdsa::proofs::FromCoreSchnorrProof(core::proof::BuildSchnorrProof(
+      core::DefaultEcdsaSuite(), session_id, prover_id, statement, witness));
 }
 
 bool VerifySchnorrProof(const Bytes& session_id, PartyIndex prover_id,
                         const ECPoint& statement, const SchnorrProof& proof) {
   return core::proof::VerifySchnorrProof(core::DefaultEcdsaSuite(), session_id,
-                                         prover_id, statement, proof);
+                                         prover_id, statement,
+                                         ecdsa::proofs::ToCoreSchnorrProof(
+                                             proof));
 }
 
 const core::paillier::BigInt& MinPaillierModulusQ8() {

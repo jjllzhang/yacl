@@ -29,6 +29,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/evidence.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages_internal.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_sqr.h"
@@ -38,6 +39,7 @@ namespace {
 
 namespace mta = tecdsa::core::mta;
 namespace messages = tecdsa::sm2::messages;
+namespace message_internal = tecdsa::sm2::messages::internal;
 namespace paillier = tecdsa::core::paillier;
 
 constexpr uint32_t kMinPaillierKeygenBits = 2048;
@@ -60,7 +62,7 @@ void RequireExactlyOneRequestPerPeer(
     if (request.to != self_id) {
       TECDSA_THROW_ARGUMENT("SM2 keygen request must target self");
     }
-    if (request.type != mta::MtaType::kMta) {
+    if (request.type != messages::MtaType::kMta) {
       TECDSA_THROW_ARGUMENT("SM2 keygen only uses the plain MtA path");
     }
     if (!senders.insert(request.from).second) {
@@ -83,7 +85,7 @@ void RequireExactlyOneResponsePerPeer(
     if (response.to != self_id) {
       TECDSA_THROW_ARGUMENT("SM2 keygen response must target self");
     }
-    if (response.type != mta::MtaType::kMta) {
+    if (response.type != messages::MtaType::kMta) {
       TECDSA_THROW_ARGUMENT("SM2 keygen only uses the plain MtA path");
     }
     if (!responders.insert(response.from).second) {
@@ -351,7 +353,7 @@ std::vector<KeygenRound3Request> KeygenParty::MakeRound3Requests(
   local_ZGamma_i_ = global_Z_.Mul(local_gamma_i_);
 
   for (PartyIndex peer : peers_) {
-    round3_requests_.push_back(messages::FromCoreRequest(
+    round3_requests_.push_back(message_internal::FromCoreRequest(
         sigma_session_.CreateRequest({
         .responder_id = peer,
         .type = mta::MtaType::kMta,
@@ -399,14 +401,14 @@ KeygenParty::TryMakeRound3Responses(
   for (const auto& request : requests_for_self) {
     try {
       const auto consume = sigma_session_.ConsumeRequest(
-          messages::ToCoreRequest(request),
+          message_internal::ToCoreRequest(request),
           {.initiator_modulus_n = all_paillier_public_.at(request.from).n,
            .responder_aux = &all_aux_rsa_params_.at(cfg_.self_id),
            .initiator_aux = &all_aux_rsa_params_.at(request.from),
            .responder_secret = local_secret_z_i_,
            .public_witness_point = std::nullopt});
       responder_sum = responder_sum + consume.responder_share;
-      out.push_back(messages::FromCoreResponse(consume.response));
+      out.push_back(message_internal::FromCoreResponse(consume.response));
     } catch (const std::exception& ex) {
       return {.value = std::nullopt,
               .abort = detection::MakeIdentifiableAbort(
@@ -434,7 +436,7 @@ KeygenRound4Msg KeygenParty::MakeRound4(
 
   for (const auto& response : responses_for_self) {
     const auto consume = sigma_session_.ConsumeResponse(
-        messages::ToCoreResponse(response),
+        message_internal::ToCoreResponse(response),
         {.initiator_paillier = local_paillier_.get(),
          .initiator_aux = &all_aux_rsa_params_.at(cfg_.self_id),
          .public_witness_point = std::nullopt});

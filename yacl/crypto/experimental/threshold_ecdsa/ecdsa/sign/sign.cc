@@ -557,9 +557,10 @@ SignRound4Msg SignParty::MakeRound4(const PeerMap<SignRound3Msg>& peer_round3) {
   round4_ = SignRound4Msg{
       .gamma_i = local_Gamma_i_,
       .randomness = local_round1_randomness_,
-      .gamma_proof = core::proof::BuildSchnorrProof(
-          core::DefaultEcdsaSuite(), cfg_.session_id, cfg_.self_id,
-          local_Gamma_i_, local_gamma_i_),
+      .gamma_proof = proofs::FromCoreSchnorrProof(
+          core::proof::BuildSchnorrProof(core::DefaultEcdsaSuite(),
+                                         cfg_.session_id, cfg_.self_id,
+                                         local_Gamma_i_, local_gamma_i_)),
   };
   return *round4_;
 }
@@ -594,7 +595,8 @@ SignRound5AMsg SignParty::MakeRound5A(
     }
     if (!core::proof::VerifySchnorrProof(core::DefaultEcdsaSuite(),
                                          cfg_.session_id, peer, msg.gamma_i,
-                                         msg.gamma_proof)) {
+                                         proofs::ToCoreSchnorrProof(
+                                             msg.gamma_proof))) {
       TECDSA_THROW_ARGUMENT("round4 gamma Schnorr proof verification failed");
     }
     gamma_points.push_back(msg.gamma_i);
@@ -637,9 +639,10 @@ SignRound5BMsg SignParty::MakeRound5B(
       .V_i = local_V_i_,
       .A_i = local_A_i_,
       .randomness = local_round5a_randomness_,
-      .a_schnorr_proof = core::proof::BuildSchnorrProof(
-          core::DefaultEcdsaSuite(), cfg_.session_id, cfg_.self_id, local_A_i_,
-          local_rho_i_),
+      .a_schnorr_proof = proofs::FromCoreSchnorrProof(
+          core::proof::BuildSchnorrProof(core::DefaultEcdsaSuite(),
+                                         cfg_.session_id, cfg_.self_id,
+                                         local_A_i_, local_rho_i_)),
       .v_relation_proof =
           relation::BuildVRelationProof(cfg_.session_id, cfg_.self_id, R_,
                                         local_V_i_, local_s_i_, local_l_i_),
@@ -682,7 +685,8 @@ SignRound5CMsg SignParty::MakeRound5C(
     }
     if (!core::proof::VerifySchnorrProof(core::DefaultEcdsaSuite(),
                                          cfg_.session_id, peer, msg.A_i,
-                                         msg.a_schnorr_proof)) {
+                                         proofs::ToCoreSchnorrProof(
+                                             msg.a_schnorr_proof))) {
       TECDSA_THROW_ARGUMENT("round5B A_i Schnorr proof verification failed");
     }
     if (!relation::VerifyVRelationProof(cfg_.session_id, peer, R_, msg.V_i,

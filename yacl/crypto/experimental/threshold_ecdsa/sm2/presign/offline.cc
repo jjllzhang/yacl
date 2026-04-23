@@ -23,6 +23,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/common.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/detection/evidence.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages_internal.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
 
@@ -31,6 +32,7 @@ namespace {
 
 namespace mta = tecdsa::core::mta;
 namespace messages = tecdsa::sm2::messages;
+namespace message_internal = tecdsa::sm2::messages::internal;
 
 constexpr char kPhase1CommitDomain[] = "SM2/offline/phase1";
 
@@ -44,7 +46,7 @@ void RequireExactlyOneRequestPerPeer(const std::vector<Round2Request>& requests,
   std::unordered_set<PartyIndex> senders;
   senders.reserve(requests.size());
   for (const auto& request : requests) {
-    if (request.to != self_id || request.type != mta::MtaType::kMtAwc) {
+    if (request.to != self_id || request.type != messages::MtaType::kMtAwc) {
       TECDSA_THROW_ARGUMENT("invalid SM2 offline request envelope");
     }
     if (!senders.insert(request.from).second) {
@@ -63,7 +65,7 @@ void RequireExactlyOneResponsePerPeer(
   std::unordered_set<PartyIndex> responders;
   responders.reserve(responses.size());
   for (const auto& response : responses) {
-    if (response.to != self_id || response.type != mta::MtaType::kMtAwc) {
+    if (response.to != self_id || response.type != messages::MtaType::kMtAwc) {
       TECDSA_THROW_ARGUMENT("invalid SM2 offline response envelope");
     }
     if (!responders.insert(response.from).second) {
@@ -163,7 +165,7 @@ std::vector<Round2Request> OfflineParty::MakeRound2Requests(
                                          cfg_.self_id, "peer_round1");
   for (PartyIndex peer : peers_) {
     phase1_commitments_[peer] = peer_round1.at(peer).commitment;
-    round2_requests_.push_back(messages::FromCoreRequest(
+    round2_requests_.push_back(message_internal::FromCoreRequest(
         delta_session_.CreateRequest({
         .responder_id = peer,
         .type = mta::MtaType::kMtAwc,
@@ -211,7 +213,7 @@ OfflineParty::TryMakeRound2Responses(
   for (const auto& request : requests_for_self) {
     try {
       const auto consume = delta_session_.ConsumeRequest(
-          messages::ToCoreRequest(request),
+          message_internal::ToCoreRequest(request),
           {.initiator_modulus_n =
                cfg_.public_keygen_data.all_paillier_public.at(request.from).n,
            .responder_aux =
@@ -221,7 +223,7 @@ OfflineParty::TryMakeRound2Responses(
            .responder_secret = local_w_i_,
            .public_witness_point = local_W_i_});
       responder_sum = responder_sum + consume.responder_share;
-      out.push_back(messages::FromCoreResponse(consume.response));
+      out.push_back(message_internal::FromCoreResponse(consume.response));
     } catch (const std::exception& ex) {
       return {.value = std::nullopt,
               .abort = detection::MakeIdentifiableAbort(
@@ -247,7 +249,7 @@ Round3Msg OfflineParty::MakeRound3(
   RequireExactlyOneResponsePerPeer(responses_for_self, peers_, cfg_.self_id);
   for (const auto& response : responses_for_self) {
     const auto consume = delta_session_.ConsumeResponse(
-        messages::ToCoreResponse(response),
+        message_internal::ToCoreResponse(response),
         {.initiator_paillier = cfg_.local_key_share.paillier.get(),
          .initiator_aux = &cfg_.public_keygen_data.all_aux_rsa_params.at(cfg_.self_id),
          .public_witness_point = w_points_.at(response.from)});

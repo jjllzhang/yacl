@@ -17,9 +17,6 @@
 #include <unordered_map>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/proofs.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/messages.h"
@@ -29,134 +26,11 @@ namespace tecdsa::proto {
 template <typename T>
 using PeerMap = std::unordered_map<PartyIndex, T>;
 
-using SchnorrProof = tecdsa::core::proof::SchnorrProof;
+using SchnorrProof = tecdsa::ecdsa::proofs::SchnorrProof;
 using VRelationProof = tecdsa::ecdsa::sign::VRelationProof;
-
-// Compatibility wrapper that remains convertible to both the scheme-owned
-// ECDSA proof type and the legacy core transport proof type.
-struct A1RangeProof {
-  tecdsa::ecdsa::proofs::BigInt z = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt u = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt w = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s1 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s2 = tecdsa::ecdsa::proofs::BigInt(0);
-
-  operator tecdsa::ecdsa::proofs::A1RangeProof() const {
-    return tecdsa::ecdsa::proofs::A1RangeProof{
-        .z = z,
-        .u = u,
-        .w = w,
-        .s = s,
-        .s1 = s1,
-        .s2 = s2,
-    };
-  }
-
-  operator tecdsa::core::mta::A1RangeProof() const {
-    return tecdsa::core::mta::A1RangeProof{
-        .z = z,
-        .u = u,
-        .w = w,
-        .s = s,
-        .s1 = s1,
-        .s2 = s2,
-    };
-  }
-};
-
-// Compatibility wrapper that remains convertible to both the scheme-owned
-// ECDSA proof type and the legacy core transport proof type.
-struct A2MtAwcProof {
-  ECPoint u;
-  tecdsa::ecdsa::proofs::BigInt z = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt z2 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt t = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt v = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt w = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s1 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s2 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt t1 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt t2 = tecdsa::ecdsa::proofs::BigInt(0);
-
-  operator tecdsa::ecdsa::proofs::A2MtAwcProof() const {
-    return tecdsa::ecdsa::proofs::A2MtAwcProof{
-        .u = u,
-        .z = z,
-        .z2 = z2,
-        .t = t,
-        .v = v,
-        .w = w,
-        .s = s,
-        .s1 = s1,
-        .s2 = s2,
-        .t1 = t1,
-        .t2 = t2,
-    };
-  }
-
-  operator tecdsa::core::mta::A2MtAwcProof() const {
-    return tecdsa::core::mta::A2MtAwcProof{
-        .u = u,
-        .z = z,
-        .z2 = z2,
-        .t = t,
-        .v = v,
-        .w = w,
-        .s = s,
-        .s1 = s1,
-        .s2 = s2,
-        .t1 = t1,
-        .t2 = t2,
-    };
-  }
-};
-
-// Compatibility wrapper that remains convertible to both the scheme-owned
-// ECDSA proof type and the legacy core transport proof type.
-struct A3MtAProof {
-  tecdsa::ecdsa::proofs::BigInt z = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt z2 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt t = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt v = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt w = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s1 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt s2 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt t1 = tecdsa::ecdsa::proofs::BigInt(0);
-  tecdsa::ecdsa::proofs::BigInt t2 = tecdsa::ecdsa::proofs::BigInt(0);
-
-  operator tecdsa::ecdsa::proofs::A3MtAProof() const {
-    return tecdsa::ecdsa::proofs::A3MtAProof{
-        .z = z,
-        .z2 = z2,
-        .t = t,
-        .v = v,
-        .w = w,
-        .s = s,
-        .s1 = s1,
-        .s2 = s2,
-        .t1 = t1,
-        .t2 = t2,
-    };
-  }
-
-  operator tecdsa::core::mta::A3MtAProof() const {
-    return tecdsa::core::mta::A3MtAProof{
-        .z = z,
-        .z2 = z2,
-        .t = t,
-        .v = v,
-        .w = w,
-        .s = s,
-        .s1 = s1,
-        .s2 = s2,
-        .t1 = t1,
-        .t2 = t2,
-    };
-  }
-};
+using A1RangeProof = tecdsa::ecdsa::proofs::A1RangeProof;
+using A2MtAwcProof = tecdsa::ecdsa::proofs::A2MtAwcProof;
+using A3MtAProof = tecdsa::ecdsa::proofs::A3MtAProof;
 
 using KeygenRound1Msg = tecdsa::ecdsa::keygen::KeygenRound1Msg;
 using KeygenRound2Broadcast = tecdsa::ecdsa::keygen::KeygenRound2Broadcast;

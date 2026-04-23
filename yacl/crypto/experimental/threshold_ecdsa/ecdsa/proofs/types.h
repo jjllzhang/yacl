@@ -16,6 +16,7 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
 
 namespace tecdsa::ecdsa::proofs {
 
@@ -57,8 +58,9 @@ struct A3MtAProof {
   BigInt t2 = BigInt(0);
 };
 
-}  // namespace tecdsa::ecdsa::proofs
+struct SchnorrProof {
+  ECPoint a;
+  Scalar z;
+};
 
-// Keep adapter declarations transitively visible for callers that historically
-// included only types.h.
-#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/adapters.h"
+}  // namespace tecdsa::ecdsa::proofs

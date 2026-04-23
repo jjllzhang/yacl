@@ -22,12 +22,12 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/dealerless_dkg.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/vss/feldman.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ec_point.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/scalar.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
 
 namespace tecdsa::proto {
@@ -35,7 +35,7 @@ namespace tecdsa::proto {
 template <typename T>
 using PeerMap = std::unordered_map<PartyIndex, T>;
 
-using SchnorrProof = tecdsa::core::proof::SchnorrProof;
+using SchnorrProof = tecdsa::ecdsa::proofs::SchnorrProof;
 
 void ValidateParticipantsOrThrow(const std::vector<PartyIndex>& participants,
                                  PartyIndex self_id,

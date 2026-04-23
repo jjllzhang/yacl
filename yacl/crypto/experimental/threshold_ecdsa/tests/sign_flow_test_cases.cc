@@ -18,6 +18,7 @@
 #include <span>
 #include <type_traits>
 
+#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/crypto/ecdsa_verify.h"
@@ -264,12 +265,12 @@ void TestStageCProtocolProofCompatibilityAlias() {
           tecdsa::proto::A3MtAProof,
           typename decltype(
               tecdsa::proto::SignRound2Response{}.a3_proof)::value_type>);
-  static_assert(std::is_convertible_v<tecdsa::proto::A1RangeProof,
-                                      tecdsa::core::mta::A1RangeProof>);
-  static_assert(std::is_convertible_v<tecdsa::proto::A2MtAwcProof,
-                                      tecdsa::core::mta::A2MtAwcProof>);
-  static_assert(std::is_convertible_v<tecdsa::proto::A3MtAProof,
-                                      tecdsa::core::mta::A3MtAProof>);
+  static_assert(std::is_same_v<tecdsa::proto::A1RangeProof,
+                               tecdsa::ecdsa::proofs::A1RangeProof>);
+  static_assert(std::is_same_v<tecdsa::proto::A2MtAwcProof,
+                               tecdsa::ecdsa::proofs::A2MtAwcProof>);
+  static_assert(std::is_same_v<tecdsa::proto::A3MtAProof,
+                               tecdsa::ecdsa::proofs::A3MtAProof>);
   static_assert(std::is_same_v<
                 tecdsa::proto::SchnorrProof,
                 decltype(tecdsa::proto::KeygenRound3Msg{}.proof)>);
@@ -279,6 +280,16 @@ void TestStageCProtocolProofCompatibilityAlias() {
   static_assert(std::is_same_v<
                 tecdsa::proto::SchnorrProof,
                 decltype(tecdsa::proto::SignRound5BMsg{}.a_schnorr_proof)>);
+  static_assert(std::is_same_v<tecdsa::proto::SchnorrProof,
+                               tecdsa::ecdsa::proofs::SchnorrProof>);
+  static_assert(!std::is_convertible_v<tecdsa::proto::A1RangeProof,
+                                       tecdsa::core::mta::A1RangeProof>);
+  static_assert(!std::is_convertible_v<tecdsa::proto::A2MtAwcProof,
+                                       tecdsa::core::mta::A2MtAwcProof>);
+  static_assert(!std::is_convertible_v<tecdsa::proto::A3MtAProof,
+                                       tecdsa::core::mta::A3MtAProof>);
+  static_assert(!std::is_same_v<tecdsa::proto::SchnorrProof,
+                                tecdsa::core::proof::SchnorrProof>);
 
   tecdsa::proto::A1RangeProof a1{
       .z = BigInt(11),
@@ -338,16 +349,6 @@ void TestStageCProtocolProofCompatibilityAlias() {
          "proto::A2MtAwcProof must populate SignRound2Response directly");
   Expect(response.a3_proof.has_value() && response.a3_proof->t2 == a3.t2,
          "proto::A3MtAProof must populate SignRound2Response directly");
-
-  const tecdsa::core::mta::A1RangeProof core_a1 = a1;
-  const tecdsa::core::mta::A2MtAwcProof core_a2 = a2;
-  const tecdsa::core::mta::A3MtAProof core_a3 = a3;
-  Expect(core_a1.s2 == a1.s2,
-         "proto::A1RangeProof must remain convertible to core::mta::A1RangeProof");
-  Expect(core_a2.t2 == a2.t2,
-         "proto::A2MtAwcProof must remain convertible to core::mta::A2MtAwcProof");
-  Expect(core_a3.t2 == a3.t2,
-         "proto::A3MtAProof must remain convertible to core::mta::A3MtAProof");
 }
 
 void TestStage6MalformedPhase2InitProofPayloadAbortsResponder() {

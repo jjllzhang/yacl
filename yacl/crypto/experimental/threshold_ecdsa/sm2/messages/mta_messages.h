@@ -14,18 +14,22 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/bytes.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/common/ids.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/mta/messages.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/types.h"
 
 namespace tecdsa::sm2::messages {
 
 using BigInt = core::paillier::BigInt;
-using MtaType = core::mta::MtaType;
+
+enum class MtaType : uint8_t {
+  kMta = 1,
+  kMtAwc = 2,
+};
 
 struct PairwiseProductRequest {
   PartyIndex from = 0;
@@ -45,15 +49,5 @@ struct PairwiseProductResponse {
   std::optional<proofs::PiLinearGroupProof> a2_proof;
   std::optional<proofs::PiLinearProof> a3_proof;
 };
-
-PairwiseProductRequest FromCoreRequest(
-    const core::mta::PairwiseProductRequest& request);
-core::mta::PairwiseProductRequest ToCoreRequest(
-    const PairwiseProductRequest& request);
-
-PairwiseProductResponse FromCoreResponse(
-    const core::mta::PairwiseProductResponse& response);
-core::mta::PairwiseProductResponse ToCoreResponse(
-    const PairwiseProductResponse& response);
 
 }  // namespace tecdsa::sm2::messages

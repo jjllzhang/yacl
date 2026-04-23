@@ -53,6 +53,7 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/proofs/gg19_range.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/relation_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/sm2/messages/mta_messages_internal.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/adapters.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_group.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/proofs/pi_linear.h"
@@ -769,10 +770,11 @@ void TestStageFExactProofAndMessageRoundTrips() {
   };
   Expect(tecdsa::core::mta::RequiresPublicPoint(core_request.type),
          "stage F request fixture must exercise the MtAwc path");
-  const auto sm2_request = tecdsa::sm2::messages::FromCoreRequest(core_request);
+  const auto sm2_request =
+      tecdsa::sm2::messages::internal::FromCoreRequest(core_request);
   Expect(sm2_request.from == core_request.from &&
              sm2_request.to == core_request.to &&
-             sm2_request.type == core_request.type &&
+             sm2_request.type == tecdsa::sm2::messages::MtaType::kMtAwc &&
              sm2_request.instance_id == core_request.instance_id &&
              sm2_request.c1 == core_request.c1 &&
              sm2_request.a1_proof.z == core_request.a1_proof.z &&
@@ -783,7 +785,7 @@ void TestStageFExactProofAndMessageRoundTrips() {
              sm2_request.a1_proof.s2 == core_request.a1_proof.s2,
          "sm2 request adapter must preserve all request fields");
   const auto core_request_roundtrip =
-      tecdsa::sm2::messages::ToCoreRequest(sm2_request);
+      tecdsa::sm2::messages::internal::ToCoreRequest(sm2_request);
   Expect(core_request_roundtrip.from == core_request.from &&
              core_request_roundtrip.to == core_request.to &&
              core_request_roundtrip.type == core_request.type &&
@@ -832,10 +834,10 @@ void TestStageFExactProofAndMessageRoundTrips() {
   Expect(tecdsa::core::mta::RequiresPublicPoint(core_response.type),
          "stage F response fixture must exercise the proof-bearing MtAwc path");
   const auto sm2_response =
-      tecdsa::sm2::messages::FromCoreResponse(core_response);
+      tecdsa::sm2::messages::internal::FromCoreResponse(core_response);
   Expect(sm2_response.from == core_response.from &&
              sm2_response.to == core_response.to &&
-             sm2_response.type == core_response.type &&
+             sm2_response.type == tecdsa::sm2::messages::MtaType::kMtAwc &&
              sm2_response.instance_id == core_response.instance_id &&
              sm2_response.c2 == core_response.c2 &&
              sm2_response.a2_proof.has_value() &&
@@ -863,7 +865,7 @@ void TestStageFExactProofAndMessageRoundTrips() {
              sm2_response.a3_proof->t2 == core_response.a3_proof->t2,
          "sm2 response adapter must preserve all proof-carrying fields");
   const auto core_response_roundtrip =
-      tecdsa::sm2::messages::ToCoreResponse(sm2_response);
+      tecdsa::sm2::messages::internal::ToCoreResponse(sm2_response);
   Expect(core_response_roundtrip.from == core_response.from &&
              core_response_roundtrip.to == core_response.to &&
              core_response_roundtrip.type == core_response.type &&
@@ -927,14 +929,14 @@ void TestStageFExactProofAndMessageRoundTrips() {
              core_response_without_optional_proofs.type),
          "stage F nullopt fixture must exercise the plain MtA path");
   const auto sm2_response_without_optional_proofs =
-      tecdsa::sm2::messages::FromCoreResponse(
+      tecdsa::sm2::messages::internal::FromCoreResponse(
           core_response_without_optional_proofs);
   Expect(sm2_response_without_optional_proofs.from ==
                  core_response_without_optional_proofs.from &&
              sm2_response_without_optional_proofs.to ==
                  core_response_without_optional_proofs.to &&
              sm2_response_without_optional_proofs.type ==
-                 core_response_without_optional_proofs.type &&
+                 tecdsa::sm2::messages::MtaType::kMta &&
              sm2_response_without_optional_proofs.instance_id ==
                  core_response_without_optional_proofs.instance_id &&
              sm2_response_without_optional_proofs.c2 ==
@@ -943,7 +945,7 @@ void TestStageFExactProofAndMessageRoundTrips() {
              !sm2_response_without_optional_proofs.a3_proof.has_value(),
          "sm2 response adapter must preserve the plain MtA envelope");
   const auto core_response_without_optional_proofs_roundtrip =
-      tecdsa::sm2::messages::ToCoreResponse(
+      tecdsa::sm2::messages::internal::ToCoreResponse(
           sm2_response_without_optional_proofs);
   Expect(core_response_without_optional_proofs_roundtrip.from ==
                  core_response_without_optional_proofs.from &&

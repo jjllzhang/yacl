@@ -100,4 +100,18 @@ core::mta::A3MtAProof ToCoreA3MtAProof(const A3MtAProof& proof) {
   };
 }
 
+SchnorrProof FromCoreSchnorrProof(const core::proof::SchnorrProof& proof) {
+  return SchnorrProof{
+      .a = proof.a,
+      .z = proof.z,
+  };
+}
+
+core::proof::SchnorrProof ToCoreSchnorrProof(const SchnorrProof& proof) {
+  return core::proof::SchnorrProof{
+      .a = proof.a,
+      .z = proof.z,
+  };
+}
+
 }  // namespace tecdsa::ecdsa::proofs
