@@ -20,11 +20,9 @@
 #include <utility>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/commitment/commitment.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/encoding/encoding.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/keygen/round12_helpers.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/aux_proofs.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_proofs.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paper_aux_setup.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/participant/participant_set.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/core/proof/schnorr.h"
@@ -67,86 +65,52 @@ void KeygenParty::EnsureLocalPolynomialPrepared() {
   }
 
   const auto ecdsa_group = core::DefaultGroupContext();
-  while (true) {
-    std::vector<Scalar> candidate_coefficients;
-    candidate_coefficients.reserve(cfg_.threshold + 1);
-    candidate_coefficients.push_back(core::vss::RandomNonZeroScalar(ecdsa_group));
-    for (uint32_t i = 0; i < cfg_.threshold; ++i) {
-      candidate_coefficients.push_back(core::vss::RandomNonZeroScalar(ecdsa_group));
-    }
-
-    PeerMap<Scalar> candidate_shares;
-    candidate_shares.reserve(cfg_.participants.size());
-    bool has_zero_share = false;
-    for (PartyIndex party : cfg_.participants) {
-      const Scalar share =
-          core::vss::EvaluatePolynomialAt(candidate_coefficients, party);
-      if (share.value() == 0) {
-        has_zero_share = true;
-        break;
-      }
-      candidate_shares.emplace(party, share);
-    }
-    if (has_zero_share) {
-      continue;
-    }
-
-    local_poly_coefficients_ = std::move(candidate_coefficients);
-    local_shares_ = std::move(candidate_shares);
-    break;
-  }
-
-  local_vss_commitments_ = core::vss::BuildCommitments(local_poly_coefficients_);
-  local_y_i_ = local_vss_commitments_.front();
-
-  const Bytes y_i_bytes = core::encoding::EncodePoint(local_y_i_);
-  const core::commitment::CommitmentResult commit =
-      core::commitment::CommitMessage(core::DefaultEcdsaSuite(),
-                                      kKeygenPhase1CommitDomain, y_i_bytes);
-  local_commitment_ = commit.commitment;
-  local_open_randomness_ = commit.randomness;
+  auto prepared = core::keygen::PrepareLocalRound1Bundle(
+      cfg_.participants, cfg_.threshold, core::DefaultEcdsaSuite(),
+      kKeygenPhase1CommitDomain,
+      [ecdsa_group]() { return core::vss::RandomNonZeroScalar(ecdsa_group); },
+      [](const std::vector<Scalar>& coefficients, PartyIndex party) {
+        return core::vss::EvaluatePolynomialAt(coefficients, party);
+      },
+      [](const std::vector<Scalar>& coefficients) {
+        return core::vss::BuildCommitments(coefficients);
+      });
+  local_poly_coefficients_ = std::move(prepared.coefficients);
+  local_shares_ = std::move(prepared.shares);
+  local_vss_commitments_ = std::move(prepared.commitments);
+  local_y_i_ = prepared.public_point;
+  local_commitment_ = std::move(prepared.commitment);
+  local_open_randomness_ = std::move(prepared.randomness);
 }
 
-void KeygenParty::EnsureLocalPaillierPrepared() {
-  if (local_paillier_ != nullptr) {
-    return;
-  }
-
-  for (size_t attempt = 0; attempt < kMaxPaillierKeygenAttempts; ++attempt) {
-    auto candidate =
-        std::make_shared<PaillierProvider>(cfg_.paillier_modulus_bits);
-    const BigInt candidate_n = candidate->modulus_n_bigint();
-    if (candidate_n > paillier::MinPaillierModulusQ8(local_y_i_.group())) {
-      local_paillier_ = std::move(candidate);
-      local_paillier_public_ = PaillierPublicKey{.n = candidate_n};
-      return;
-    }
-  }
-
-  TECDSA_THROW("failed to generate Paillier modulus N > q^8");
-}
-
-void KeygenParty::EnsureLocalProofsPrepared() {
+void KeygenParty::EnsureLocalPaillierAndAuxPrepared() {
   if (local_aux_rsa_params_.n_tilde > 0) {
     return;
   }
 
-  EnsureLocalPaillierPrepared();
-  const auto context = paillier::BuildProofContext(
-      cfg_.session_id, cfg_.self_id, core::DefaultEcdsaSuite(), local_y_i_.group());
-  const auto aux_setup = paillier::GeneratePaperAuxSetup(cfg_.aux_rsa_modulus_bits);
-  local_aux_rsa_params_ = aux_setup.params;
-  local_aux_rsa_witness_ = aux_setup.witness;
-  if (!paillier::ValidatePaperAuxSetup(local_aux_rsa_params_,
-                                       local_aux_rsa_witness_)) {
-    TECDSA_THROW("failed to validate local paper auxiliary setup");
+  auto prepared = core::keygen::PrepareLocalPaillierAuxBundle(
+      cfg_.paillier_modulus_bits, cfg_.aux_rsa_modulus_bits,
+      kMaxPaillierKeygenAttempts, cfg_.session_id, cfg_.self_id,
+      core::DefaultEcdsaSuite(), local_y_i_.group());
+  local_paillier_ = std::move(prepared.paillier);
+  local_paillier_public_ = prepared.paillier_public;
+  local_aux_rsa_params_ = prepared.aux_rsa_params;
+  local_aux_rsa_witness_ = prepared.aux_rsa_witness;
+  local_aux_param_proof_ = prepared.aux_param_proof;
+}
+
+void KeygenParty::EnsureLocalProofsPrepared() {
+  if (!local_square_free_proof_.blob.empty()) {
+    return;
   }
+
+  EnsureLocalPaillierAndAuxPrepared();
+  const auto context =
+      paillier::BuildProofContext(cfg_.session_id, cfg_.self_id,
+                                  core::DefaultEcdsaSuite(), local_y_i_.group());
   local_square_free_proof_ = BuildSquareFreeProofGmr98(
       local_paillier_public_.n, local_paillier_->private_lambda_bigint(),
       context);
-  local_aux_param_proof_ = paillier::BuildAuxCorrectFormProof(
-      local_aux_rsa_params_, local_aux_rsa_witness_, context);
-
   if (!VerifySquareFreeProofGmr98(local_paillier_public_.n,
                                   local_square_free_proof_, context)) {
     TECDSA_THROW("failed to self-verify local square-free proof");
@@ -163,7 +127,6 @@ KeygenRound1Msg KeygenParty::MakeRound1() {
   }
 
   EnsureLocalPolynomialPrepared();
-  EnsureLocalPaillierPrepared();
   EnsureLocalProofsPrepared();
 
   all_phase1_commitments_[cfg_.self_id] = local_commitment_;
@@ -193,17 +156,9 @@ KeygenRound2Out KeygenParty::MakeRound2(
   for (PartyIndex peer : peers_) {
     const auto it = peer_round1.find(peer);
     const KeygenRound1Msg& msg = it->second;
-    paillier::ValidatePaillierPublicKeyOrThrow(msg.paillier_public,
-                                               local_y_i_.group());
-    if (!ValidateAuxRsaParams(msg.aux_rsa_params)) {
-      TECDSA_THROW_ARGUMENT("peer aux RSA parameters are invalid");
-    }
-    const auto context = paillier::BuildProofContext(
-        cfg_.session_id, peer, core::DefaultEcdsaSuite(), local_y_i_.group());
-    if (!paillier::VerifyAuxCorrectFormProof(msg.aux_rsa_params,
-                                             msg.aux_param_proof, context)) {
-      TECDSA_THROW_ARGUMENT("peer aux parameter proof verification failed");
-    }
+    core::keygen::ValidatePeerRound1Common(
+        cfg_.session_id, peer, core::DefaultEcdsaSuite(), local_y_i_.group(),
+        msg.paillier_public, msg.aux_rsa_params, msg.aux_param_proof);
 
     all_phase1_commitments_[peer] = msg.commitment;
     all_paillier_public_[peer] = msg.paillier_public;
@@ -222,14 +177,6 @@ KeygenRound2Out KeygenParty::MakeRound2(
   }
   round2_ = out;
   return *round2_;
-}
-
-bool KeygenParty::VerifyDealerShareForSelf(PartyIndex dealer,
-                                           const KeygenRound2Broadcast& round2,
-                                           const Scalar& share) const {
-  (void)dealer;
-  return core::vss::VerifyShareForReceiver(cfg_.self_id, cfg_.threshold,
-                                           round2.commitments, share);
 }
 
 KeygenRound3Msg KeygenParty::MakeRound3(
@@ -259,24 +206,15 @@ KeygenRound3Msg KeygenParty::MakeRound3(
       TECDSA_THROW_LOGIC("missing stored round1 commitment for peer");
     }
 
-    if (msg.commitments.size() != cfg_.threshold + 1) {
-      TECDSA_THROW_ARGUMENT("peer commitment count does not match threshold");
-    }
-    if (msg.commitments.front() != msg.y_i) {
-      TECDSA_THROW_ARGUMENT("peer Feldman commitments do not open to y_i");
-    }
-
-    const Bytes y_i_bytes = core::encoding::EncodePoint(msg.y_i);
-    if (!core::commitment::VerifyCommitment(
-            core::DefaultEcdsaSuite(), kKeygenPhase1CommitDomain, y_i_bytes,
-            msg.randomness, commitment_it->second)) {
-      TECDSA_THROW_ARGUMENT("peer phase1 commitment verification failed");
-    }
-
     const Scalar share = shares_for_self.at(peer);
-    if (!VerifyDealerShareForSelf(peer, msg, share)) {
-      TECDSA_THROW_ARGUMENT("peer Feldman share verification failed");
-    }
+    core::keygen::ValidatePeerRound2ShareCommon(
+        cfg_.threshold, core::DefaultEcdsaSuite(), kKeygenPhase1CommitDomain,
+        "y_i", commitment_it->second, msg.y_i, msg.randomness, msg.commitments,
+        share, [this](const std::vector<ECPoint>& commitments,
+                      const Scalar& candidate_share) {
+          return core::vss::VerifyShareForReceiver(
+              cfg_.self_id, cfg_.threshold, commitments, candidate_share);
+        });
 
     x_sum = x_sum + share;
     y_points.push_back(msg.y_i);

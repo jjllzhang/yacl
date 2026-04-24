@@ -47,11 +47,8 @@ class KeygenParty {
 
  private:
   void EnsureLocalPolynomialPrepared();
-  void EnsureLocalPaillierPrepared();
+  void EnsureLocalPaillierAndAuxPrepared();
   void EnsureLocalProofsPrepared();
-  bool VerifyDealerShareForSelf(PartyIndex dealer,
-                                const KeygenRound2Broadcast& round2,
-                                const Scalar& share) const;
 
   KeygenConfig cfg_;
   std::vector<PartyIndex> peers_;
