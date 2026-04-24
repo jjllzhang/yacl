@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <exception>
 #include <string>
-#include <unordered_set>
 #include <utility>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
@@ -37,7 +36,6 @@ namespace tecdsa::sm2::keygen {
 namespace {
 
 namespace mta = tecdsa::core::mta;
-namespace messages = tecdsa::sm2::messages;
 namespace message_internal = tecdsa::sm2::messages::internal;
 namespace paillier = tecdsa::core::paillier;
 
@@ -46,52 +44,6 @@ constexpr uint32_t kMinAuxRsaKeygenBits = 164;
 constexpr size_t kMaxPaillierKeygenAttempts = 32;
 constexpr char kKeygenPhase1CommitDomain[] = "SM2/keygen/phase1";
 constexpr char kDefaultSignerId[] = "1234567812345678";
-
-void RequireExactlyOneRequestPerPeer(
-    const std::vector<KeygenRound3Request>& requests,
-    const std::vector<PartyIndex>& peers, PartyIndex self_id) {
-  if (requests.size() != peers.size()) {
-    TECDSA_THROW_ARGUMENT(
-        "SM2 keygen requests_for_self must contain exactly one request per peer");
-  }
-
-  std::unordered_set<PartyIndex> senders;
-  senders.reserve(requests.size());
-  for (const auto& request : requests) {
-    if (request.to != self_id) {
-      TECDSA_THROW_ARGUMENT("SM2 keygen request must target self");
-    }
-    if (request.type != messages::MtaType::kMta) {
-      TECDSA_THROW_ARGUMENT("SM2 keygen only uses the plain MtA path");
-    }
-    if (!senders.insert(request.from).second) {
-      TECDSA_THROW_ARGUMENT("duplicate SM2 keygen request sender");
-    }
-  }
-}
-
-void RequireExactlyOneResponsePerPeer(
-    const std::vector<KeygenRound3Response>& responses,
-    const std::vector<PartyIndex>& peers, PartyIndex self_id) {
-  if (responses.size() != peers.size()) {
-    TECDSA_THROW_ARGUMENT(
-        "SM2 keygen responses_for_self must contain exactly one response per peer");
-  }
-
-  std::unordered_set<PartyIndex> responders;
-  responders.reserve(responses.size());
-  for (const auto& response : responses) {
-    if (response.to != self_id) {
-      TECDSA_THROW_ARGUMENT("SM2 keygen response must target self");
-    }
-    if (response.type != messages::MtaType::kMta) {
-      TECDSA_THROW_ARGUMENT("SM2 keygen only uses the plain MtA path");
-    }
-    if (!responders.insert(response.from).second) {
-      TECDSA_THROW_ARGUMENT("duplicate SM2 keygen response sender");
-    }
-  }
-}
 
 }  // namespace
 
@@ -323,7 +275,9 @@ KeygenParty::TryMakeRound3Responses(
   }
 
   try {
-    RequireExactlyOneRequestPerPeer(requests_for_self, peers_, cfg_.self_id);
+    mta::RequireExactlyOneRequestPerPeer(
+        requests_for_self, peers_, cfg_.self_id, mta::MtaType::kMta,
+        message_internal::ToCoreRequest, "SM2 keygen request");
   } catch (const std::exception& ex) {
     return {.value = std::nullopt,
             .abort = detection::MakeUnattributedAbort(
@@ -369,7 +323,9 @@ KeygenRound4Msg KeygenParty::MakeRound4(
     TECDSA_THROW_LOGIC("MakeRound3Responses must be completed before MakeRound4");
   }
 
-  RequireExactlyOneResponsePerPeer(responses_for_self, peers_, cfg_.self_id);
+  mta::RequireExactlyOneResponsePerInitiatorInstance(
+      responses_for_self, peers_, cfg_.self_id, sigma_session_,
+      message_internal::ToCoreResponse, "SM2 keygen response");
 
   for (const auto& response : responses_for_self) {
     const auto consume = sigma_session_.ConsumeResponse(

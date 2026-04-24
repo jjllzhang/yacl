@@ -15,7 +15,6 @@
 #include "yacl/crypto/experimental/threshold_ecdsa/sm2/presign/offline.h"
 
 #include <exception>
-#include <unordered_set>
 #include <utility>
 
 #include "yacl/crypto/experimental/threshold_ecdsa/common/errors.h"
@@ -31,48 +30,9 @@ namespace tecdsa::sm2::presign {
 namespace {
 
 namespace mta = tecdsa::core::mta;
-namespace messages = tecdsa::sm2::messages;
 namespace message_internal = tecdsa::sm2::messages::internal;
 
 constexpr char kPhase1CommitDomain[] = "SM2/offline/phase1";
-
-void RequireExactlyOneRequestPerPeer(const std::vector<Round2Request>& requests,
-                                     const std::vector<PartyIndex>& peers,
-                                     PartyIndex self_id) {
-  if (requests.size() != peers.size()) {
-    TECDSA_THROW_ARGUMENT(
-        "SM2 offline requests_for_self must contain exactly one request per peer");
-  }
-  std::unordered_set<PartyIndex> senders;
-  senders.reserve(requests.size());
-  for (const auto& request : requests) {
-    if (request.to != self_id || request.type != messages::MtaType::kMtAwc) {
-      TECDSA_THROW_ARGUMENT("invalid SM2 offline request envelope");
-    }
-    if (!senders.insert(request.from).second) {
-      TECDSA_THROW_ARGUMENT("duplicate SM2 offline request sender");
-    }
-  }
-}
-
-void RequireExactlyOneResponsePerPeer(
-    const std::vector<Round2Response>& responses,
-    const std::vector<PartyIndex>& peers, PartyIndex self_id) {
-  if (responses.size() != peers.size()) {
-    TECDSA_THROW_ARGUMENT(
-        "SM2 offline responses_for_self must contain exactly one response per peer");
-  }
-  std::unordered_set<PartyIndex> responders;
-  responders.reserve(responses.size());
-  for (const auto& response : responses) {
-    if (response.to != self_id || response.type != messages::MtaType::kMtAwc) {
-      TECDSA_THROW_ARGUMENT("invalid SM2 offline response envelope");
-    }
-    if (!responders.insert(response.from).second) {
-      TECDSA_THROW_ARGUMENT("duplicate SM2 offline response sender");
-    }
-  }
-}
 
 }  // namespace
 
@@ -198,7 +158,9 @@ OfflineParty::TryMakeRound2Responses(
   }
 
   try {
-    RequireExactlyOneRequestPerPeer(requests_for_self, peers_, cfg_.self_id);
+    mta::RequireExactlyOneRequestPerPeer(
+        requests_for_self, peers_, cfg_.self_id, mta::MtaType::kMtAwc,
+        message_internal::ToCoreRequest, "SM2 offline request");
   } catch (const std::exception& ex) {
     return {.value = std::nullopt,
             .abort = detection::MakeUnattributedAbort(
@@ -246,7 +208,9 @@ Round3Msg OfflineParty::MakeRound3(
     TECDSA_THROW_LOGIC("MakeRound2Responses must be completed before MakeRound3");
   }
 
-  RequireExactlyOneResponsePerPeer(responses_for_self, peers_, cfg_.self_id);
+  mta::RequireExactlyOneResponsePerInitiatorInstance(
+      responses_for_self, peers_, cfg_.self_id, delta_session_,
+      message_internal::ToCoreResponse, "SM2 offline response");
   for (const auto& response : responses_for_self) {
     const auto consume = delta_session_.ConsumeResponse(
         message_internal::ToCoreResponse(response),

@@ -14,12 +14,11 @@
 
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
 
-#include <algorithm>
+#include <array>
 #include <exception>
 #include <optional>
 #include <span>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -130,10 +129,6 @@ mta::PairwiseProductResponse ToCoreResponse(const SignRound2Response& response) 
                             proofs::ToCoreA3MtAProof(*response.a3_proof))
                       : std::nullopt,
   };
-}
-
-bool IsPeer(const std::vector<PartyIndex>& peers, PartyIndex party) {
-  return std::find(peers.begin(), peers.end(), party) != peers.end();
 }
 
 void ValidateCommitmentOrThrow(const Bytes& commitment,
@@ -375,41 +370,15 @@ std::vector<SignRound2Response> SignParty::MakeRound2Responses(
     TECDSA_THROW_LOGIC(
         "MakeRound2Requests must be completed before MakeRound2Responses");
   }
-  if (requests_for_self.size() !=
-      mta::ExpectedPairwiseProductMessageCount(peers_.size())) {
-    TECDSA_THROW_ARGUMENT(
-        "requests_for_self must contain exactly one request per peer/type");
-  }
-
-  std::unordered_set<std::string> seen_request_keys;
-  std::unordered_set<std::string> seen_instance_keys;
-  seen_request_keys.reserve(requests_for_self.size());
-  seen_instance_keys.reserve(requests_for_self.size());
+  const std::array<mta::MtaType, 2> expected_types = {
+      mta::MtaType::kMta, mta::MtaType::kMtAwc};
+  mta::RequireExactlyOneRequestPerPeerAndType(
+      requests_for_self, peers_, cfg_.self_id, expected_types, ToCoreRequest,
+      "round2 request");
 
   std::vector<SignRound2Response> out;
   out.reserve(requests_for_self.size());
   for (const SignRound2Request& request : requests_for_self) {
-    if (!IsPeer(peers_, request.from)) {
-      TECDSA_THROW_ARGUMENT("round2 request sender is not a peer");
-    }
-    if (request.to != cfg_.self_id) {
-      TECDSA_THROW_ARGUMENT("round2 request must target self");
-    }
-    if (request.instance_id.size() != mta::kMtaInstanceIdLen) {
-      TECDSA_THROW_ARGUMENT("round2 request instance id has invalid length");
-    }
-
-    const std::string request_key =
-        mta::MakeResponderRequestKey(request.from, ToCoreMtaType(request.type));
-    if (!seen_request_keys.insert(request_key).second) {
-      TECDSA_THROW_ARGUMENT("duplicate round2 request for sender/type");
-    }
-
-    const std::string instance_key = mta::BytesToKey(request.instance_id);
-    if (!seen_instance_keys.insert(instance_key).second) {
-      TECDSA_THROW_ARGUMENT("duplicate round2 request instance id");
-    }
-
     const auto self_aux_it =
         cfg_.public_keygen_data.all_aux_rsa_params.find(cfg_.self_id);
     if (self_aux_it == cfg_.public_keygen_data.all_aux_rsa_params.end()) {
@@ -458,15 +427,9 @@ SignRound3Msg SignParty::MakeRound3(
     TECDSA_THROW_LOGIC(
         "MakeRound2Responses must be completed before MakeRound3");
   }
-  if (responses_for_self.size() != phase2_session_.initiator_instance_count()) {
-    TECDSA_THROW_ARGUMENT(
-        "responses_for_self must contain exactly one response per request");
-  }
-
-  std::unordered_set<std::string> seen_request_keys;
-  std::unordered_set<std::string> seen_instance_keys;
-  seen_request_keys.reserve(responses_for_self.size());
-  seen_instance_keys.reserve(responses_for_self.size());
+  mta::RequireExactlyOneResponsePerInitiatorInstance(
+      responses_for_self, peers_, cfg_.self_id, phase2_session_, ToCoreResponse,
+      "round2 response");
 
   const auto self_aux_it =
       cfg_.public_keygen_data.all_aux_rsa_params.find(cfg_.self_id);
@@ -475,36 +438,6 @@ SignRound3Msg SignParty::MakeRound3(
   }
 
   for (const SignRound2Response& response : responses_for_self) {
-    if (!IsPeer(peers_, response.from)) {
-      TECDSA_THROW_ARGUMENT("round2 response sender is not a peer");
-    }
-    if (response.to != cfg_.self_id) {
-      TECDSA_THROW_ARGUMENT("round2 response must target self");
-    }
-    if (response.instance_id.size() != mta::kMtaInstanceIdLen) {
-      TECDSA_THROW_ARGUMENT("round2 response instance id has invalid length");
-    }
-
-    const std::string instance_key = mta::BytesToKey(response.instance_id);
-    if (!seen_instance_keys.insert(instance_key).second) {
-      TECDSA_THROW_ARGUMENT("duplicate round2 response instance id");
-    }
-
-    const auto& instance =
-        phase2_session_.GetInitiatorInstance(response.instance_id);
-    if (instance.responder != response.from) {
-      TECDSA_THROW_ARGUMENT("round2 response sender mismatch");
-    }
-    if (instance.type != ToCoreMtaType(response.type)) {
-      TECDSA_THROW_ARGUMENT("round2 response type mismatch");
-    }
-
-    const std::string request_key =
-        mta::MakeResponderRequestKey(response.from,
-                                     ToCoreMtaType(response.type));
-    if (!seen_request_keys.insert(request_key).second) {
-      TECDSA_THROW_ARGUMENT("duplicate round2 response for sender/type");
-    }
     const auto consume_result = phase2_session_.ConsumeResponse(
         ToCoreResponse(response),
         {.initiator_paillier = cfg_.local_key_share.paillier.get(),
