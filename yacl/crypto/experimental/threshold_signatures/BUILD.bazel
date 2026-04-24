@@ -1,0 +1,97 @@
+# Copyright 2026 Ant Group Co., Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("//bazel:yacl.bzl", "yacl_cc_binary", "yacl_cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+TECDSA_COPTS = ["-std=gnu++20"]
+
+TSIG_CORE_SRCS = glob([
+    "core/**/*.cc",
+])
+
+TSIG_CORE_HDRS = glob([
+    "common/*.h",
+    "core/**/*.h",
+])
+
+TSIG_ECDSA_SRCS = glob([
+    "ecdsa/**/*.cc",
+])
+
+TSIG_ECDSA_HDRS = glob([
+    "ecdsa/**/*.h",
+])
+
+TSIG_COMMON_DEPS = [
+    "//yacl/crypto/ecc/openssl:openssl",
+    # Big integer backend used across scalar/paillier/proof/protocol code paths.
+    "//yacl/math/mpint",
+]
+
+yacl_cc_library(
+    name = "tsig_core",
+    srcs = TSIG_CORE_SRCS,
+    hdrs = TSIG_CORE_HDRS,
+    copts = TECDSA_COPTS,
+    deps = TSIG_COMMON_DEPS + [
+        "//yacl/base:exception",
+        "//yacl/crypto/hash:hash_utils",
+    ],
+)
+
+yacl_cc_library(
+    name = "tsig_ecdsa",
+    srcs = TSIG_ECDSA_SRCS,
+    hdrs = TSIG_ECDSA_HDRS,
+    copts = TECDSA_COPTS,
+    deps = [
+        ":tsig_core",
+    ],
+)
+
+yacl_cc_library(
+    name = "tsig_sm2",
+    srcs = glob([
+        "sm2/**/*.cc",
+    ]),
+    hdrs = glob([
+        "sm2/**/*.h",
+    ]),
+    copts = TECDSA_COPTS,
+    deps = [
+        ":tsig_core",
+    ],
+)
+
+yacl_cc_binary(
+    name = "sign_flow_tests",
+    srcs = [
+        "tests/ecdsa_flow_test.cc",
+        "tests/test_helpers.h",
+    ],
+    copts = TECDSA_COPTS,
+    deps = [":tsig_ecdsa"],
+)
+
+yacl_cc_binary(
+    name = "sm2_sign_flow_tests",
+    srcs = [
+        "tests/sm2_flow_test.cc",
+        "tests/test_helpers.h",
+    ],
+    copts = TECDSA_COPTS,
+    deps = [":tsig_sm2"],
+)
