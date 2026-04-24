@@ -17,6 +17,9 @@
 #include <utility>
 
 #include "sign_flow_test_shared.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/paillier/paillier.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/group_context.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/core/suite/suite.h"
 
 namespace tecdsa::sign_flow_test {
 namespace {
@@ -85,7 +88,7 @@ KeygenPartyMap BuildParties(uint32_t n, uint32_t t, const Bytes& session_id) {
   const std::vector<PartyIndex> participants = BuildParticipants(n);
   KeygenPartyMap parties;
   for (PartyIndex party : participants) {
-    tecdsa::proto::KeygenConfig cfg;
+    tecdsa::ecdsa::keygen::KeygenConfig cfg;
     cfg.session_id = session_id;
     cfg.self_id = party;
     cfg.participants = participants;
@@ -173,7 +176,9 @@ SignFixture BuildSignFixture(const std::vector<PartyIndex>& signers) {
 
 tecdsa::core::paillier::StrictProofVerifierContext BuildKeygenProofContext(
     const Bytes& keygen_session_id, PartyIndex prover_id) {
-  return tecdsa::proto::BuildProofContext(keygen_session_id, prover_id);
+  return tecdsa::core::paillier::BuildProofContext(
+      keygen_session_id, prover_id, tecdsa::core::DefaultEcdsaSuite(),
+      tecdsa::core::DefaultGroupContext());
 }
 
 std::vector<SignConfig> BuildSignConfigs(const SignFixture& fixture,

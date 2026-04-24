@@ -16,12 +16,9 @@
 
 #include <stdexcept>
 #include <span>
-#include <type_traits>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/core/proof/types.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
 #include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/verify/verify.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/crypto/ecdsa_verify.h"
 
 namespace tecdsa::sign_flow_test {
 namespace {
@@ -219,138 +216,6 @@ void TestStage6FinalizePreservesRawHighS() {
       "Test failed: unable to observe a high raw s in 32 signing attempts");
 }
 
-void TestStage6ProtocolSignCompatibilityAlias() {
-  static_assert(std::is_same_v<tecdsa::proto::SignConfig,
-                               tecdsa::ecdsa::sign::SignConfig>);
-  static_assert(std::is_same_v<tecdsa::proto::SignParty,
-                               tecdsa::ecdsa::sign::SignParty>);
-
-  const auto keygen_results =
-      RunKeygenAndCollectResults(/*n=*/3, /*t=*/1, Bytes{0xD8, 0x03, 0x01});
-  const std::vector<PartyIndex> signers = {1, 2};
-  const SignFixture fixture = BuildSignFixture(signers);
-  std::vector<SignConfig> configs =
-      BuildSignConfigs(fixture, keygen_results, Bytes{0xE8, 0x02, 0x01},
-                       Bytes{0xD8, 0x03, 0x01});
-
-  tecdsa::ecdsa::sign::SignParty party(std::move(configs.front()));
-  Expect(party.config().self_id == 1,
-         "ecdsa::sign::SignParty must expose the same config shape");
-
-  auto sign_parties = BuildDefaultSignParties(
-      keygen_results, Bytes{0xD8, 0x03, 0x01}, Bytes{0xE8, 0x02, 0x02});
-  SignRoundState state;
-  RunToCompletion(&sign_parties, signers, &state);
-  const auto signatures =
-      FinalizeSignatures(&sign_parties, signers, state.round5e);
-  const Signature& signature = signatures.at(1);
-  Expect(tecdsa::ecdsa::verify::VerifyEcdsaSignatureMath(
-             keygen_results.at(1).public_keygen_data.y,
-             std::span<const uint8_t>(fixture.msg32.data(), fixture.msg32.size()),
-             signature.r, signature.s),
-         "ecdsa::verify::VerifyEcdsaSignatureMath must verify the final signature");
-}
-
-void TestStageCProtocolProofCompatibilityAlias() {
-  static_assert(
-      std::is_convertible_v<tecdsa::proto::A1RangeProof,
-                            decltype(tecdsa::proto::SignRound2Request{}.a1_proof)>);
-  static_assert(
-      std::is_convertible_v<
-          tecdsa::proto::A2MtAwcProof,
-          typename decltype(
-              tecdsa::proto::SignRound2Response{}.a2_proof)::value_type>);
-  static_assert(
-      std::is_convertible_v<
-          tecdsa::proto::A3MtAProof,
-          typename decltype(
-              tecdsa::proto::SignRound2Response{}.a3_proof)::value_type>);
-  static_assert(std::is_same_v<tecdsa::proto::A1RangeProof,
-                               tecdsa::ecdsa::proofs::A1RangeProof>);
-  static_assert(std::is_same_v<tecdsa::proto::A2MtAwcProof,
-                               tecdsa::ecdsa::proofs::A2MtAwcProof>);
-  static_assert(std::is_same_v<tecdsa::proto::A3MtAProof,
-                               tecdsa::ecdsa::proofs::A3MtAProof>);
-  static_assert(std::is_same_v<
-                tecdsa::proto::SchnorrProof,
-                decltype(tecdsa::proto::KeygenRound3Msg{}.proof)>);
-  static_assert(std::is_same_v<
-                tecdsa::proto::SchnorrProof,
-                decltype(tecdsa::proto::SignRound4Msg{}.gamma_proof)>);
-  static_assert(std::is_same_v<
-                tecdsa::proto::SchnorrProof,
-                decltype(tecdsa::proto::SignRound5BMsg{}.a_schnorr_proof)>);
-  static_assert(std::is_same_v<tecdsa::proto::SchnorrProof,
-                               tecdsa::ecdsa::proofs::SchnorrProof>);
-  static_assert(
-      std::is_same_v<tecdsa::proto::A1RangeProof, tecdsa::core::mta::A1RangeProof>);
-  static_assert(std::is_same_v<tecdsa::proto::A2MtAwcProof,
-                               tecdsa::core::mta::A2MtAwcProof>);
-  static_assert(
-      std::is_same_v<tecdsa::proto::A3MtAProof, tecdsa::core::mta::A3MtAProof>);
-  static_assert(!std::is_same_v<tecdsa::proto::SchnorrProof,
-                                tecdsa::core::proof::SchnorrProof>);
-
-  tecdsa::proto::A1RangeProof a1{
-      .z = BigInt(11),
-      .u = BigInt(12),
-      .w = BigInt(13),
-      .s = BigInt(14),
-      .s1 = BigInt(15),
-      .s2 = BigInt(16),
-  };
-  tecdsa::proto::A2MtAwcProof a2{
-      .u = ECPoint::GeneratorMultiply(Scalar::FromUint64(3)),
-      .z = BigInt(21),
-      .z2 = BigInt(22),
-      .t = BigInt(23),
-      .v = BigInt(24),
-      .w = BigInt(25),
-      .s = BigInt(26),
-      .s1 = BigInt(27),
-      .s2 = BigInt(28),
-      .t1 = BigInt(29),
-      .t2 = BigInt(30),
-  };
-  tecdsa::proto::A3MtAProof a3{
-      .z = BigInt(31),
-      .z2 = BigInt(32),
-      .t = BigInt(33),
-      .v = BigInt(34),
-      .w = BigInt(35),
-      .s = BigInt(36),
-      .s1 = BigInt(37),
-      .s2 = BigInt(38),
-      .t1 = BigInt(39),
-      .t2 = BigInt(40),
-  };
-
-  tecdsa::proto::SignRound2Request request{
-      .from = 1,
-      .to = 2,
-      .type = tecdsa::proto::MtaType::kTimesGamma,
-      .instance_id = Bytes{0xC3, 0x02, 0x01},
-      .c1 = BigInt(17),
-      .a1_proof = a1,
-  };
-  tecdsa::proto::SignRound2Response response{
-      .from = 2,
-      .to = 1,
-      .type = tecdsa::proto::MtaType::kTimesGamma,
-      .instance_id = Bytes{0xC3, 0x02, 0x01},
-      .c2 = BigInt(18),
-      .a2_proof = a2,
-      .a3_proof = a3,
-  };
-
-  Expect(request.a1_proof.s2 == a1.s2,
-         "proto::A1RangeProof must populate SignRound2Request directly");
-  Expect(response.a2_proof.has_value() && response.a2_proof->t2 == a2.t2,
-         "proto::A2MtAwcProof must populate SignRound2Response directly");
-  Expect(response.a3_proof.has_value() && response.a3_proof->t2 == a3.t2,
-         "proto::A3MtAProof must populate SignRound2Response directly");
-}
-
 void TestStage6MalformedPhase2InitProofPayloadAbortsResponder() {
   const auto keygen_results =
       RunKeygenAndCollectResults(/*n=*/3, /*t=*/1, Bytes{0xE0, 0x03, 0x01});
@@ -483,7 +348,7 @@ void TestM4SignEndToEndProducesVerifiableSignature() {
   const Signature& baseline = signatures.at(signers.front());
   Expect(baseline.r.value() != 0, "final signature r must be non-zero");
   Expect(baseline.s.value() != 0, "final signature s must be non-zero");
-  Expect(tecdsa::VerifyEcdsaSignatureMath(
+  Expect(tecdsa::ecdsa::verify::VerifyEcdsaSignatureMath(
              keygen_results.at(1).public_keygen_data.y, fixture.msg32,
              baseline.r, baseline.s),
          "final signature must verify");
@@ -586,7 +451,7 @@ void TestM7TamperedPhase2A3ProofAbortsInitiator() {
   bool tampered = false;
   for (SignRound2Response& response : round2_responses) {
     if (response.from == 2 && response.to == 1 &&
-        response.type == tecdsa::proto::MtaType::kTimesGamma &&
+        response.type == tecdsa::ecdsa::sign::MtaType::kTimesGamma &&
         response.a3_proof.has_value()) {
       response.a3_proof->t2 += tecdsa::BigInt(1);
       tampered = true;
@@ -616,7 +481,7 @@ void TestM7TamperedPhase2A2ProofAbortsInitiator() {
   bool tampered = false;
   for (SignRound2Response& response : round2_responses) {
     if (response.from == 2 && response.to == 1 &&
-        response.type == tecdsa::proto::MtaType::kTimesW &&
+        response.type == tecdsa::ecdsa::sign::MtaType::kTimesW &&
         response.a2_proof.has_value()) {
       response.a2_proof->t2 += tecdsa::BigInt(1);
       tampered = true;

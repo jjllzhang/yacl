@@ -22,32 +22,34 @@
 #include <unordered_map>
 #include <vector>
 
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/keygen.h"
-#include "yacl/crypto/experimental/threshold_ecdsa/protocol/sign.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/keygen/keygen.h"
+#include "yacl/crypto/experimental/threshold_ecdsa/ecdsa/sign/sign.h"
 
 namespace tecdsa::sign_flow_test {
 
 using ::tecdsa::Bytes;
 using ::tecdsa::PartyIndex;
 using ::tecdsa::Scalar;
-using ::tecdsa::proto::KeygenOutput;
-using ::tecdsa::proto::KeygenParty;
-using ::tecdsa::proto::KeygenRound1Msg;
-using ::tecdsa::proto::KeygenRound2Broadcast;
-using ::tecdsa::proto::KeygenRound3Msg;
-using ::tecdsa::proto::PeerMap;
-using ::tecdsa::proto::Signature;
-using ::tecdsa::proto::SignConfig;
-using ::tecdsa::proto::SignParty;
-using ::tecdsa::proto::SignRound1Msg;
-using ::tecdsa::proto::SignRound2Request;
-using ::tecdsa::proto::SignRound2Response;
-using ::tecdsa::proto::SignRound3Msg;
-using ::tecdsa::proto::SignRound4Msg;
-using ::tecdsa::proto::SignRound5AMsg;
-using ::tecdsa::proto::SignRound5BMsg;
-using ::tecdsa::proto::SignRound5CMsg;
-using ::tecdsa::proto::SignRound5DMsg;
+using ::tecdsa::ecdsa::keygen::KeygenOutput;
+using ::tecdsa::ecdsa::keygen::KeygenParty;
+using ::tecdsa::ecdsa::keygen::KeygenRound1Msg;
+using ::tecdsa::ecdsa::keygen::KeygenRound2Broadcast;
+using ::tecdsa::ecdsa::keygen::KeygenRound3Msg;
+using ::tecdsa::ecdsa::sign::Signature;
+using ::tecdsa::ecdsa::sign::SignConfig;
+using ::tecdsa::ecdsa::sign::SignParty;
+using ::tecdsa::ecdsa::sign::SignRound1Msg;
+using ::tecdsa::ecdsa::sign::SignRound2Request;
+using ::tecdsa::ecdsa::sign::SignRound2Response;
+using ::tecdsa::ecdsa::sign::SignRound3Msg;
+using ::tecdsa::ecdsa::sign::SignRound4Msg;
+using ::tecdsa::ecdsa::sign::SignRound5AMsg;
+using ::tecdsa::ecdsa::sign::SignRound5BMsg;
+using ::tecdsa::ecdsa::sign::SignRound5CMsg;
+using ::tecdsa::ecdsa::sign::SignRound5DMsg;
+
+template <typename T>
+using PeerMap = std::unordered_map<PartyIndex, T>;
 
 using KeygenOutputs = std::unordered_map<PartyIndex, KeygenOutput>;
 using KeygenPartyMap = std::unordered_map<PartyIndex, KeygenParty>;
@@ -148,8 +150,6 @@ void TestStage6SignConstructorRejectsMissingKeygenProofArtifacts();
 void TestStage6SignConstructorRejectsInvalidKeygenProofArtifacts();
 void TestStage6SignConstructorRejectsSignerCountMismatch();
 void TestStage6FinalizePreservesRawHighS();
-void TestStage6ProtocolSignCompatibilityAlias();
-void TestStageCProtocolProofCompatibilityAlias();
 void TestStage6MalformedPhase2InitProofPayloadAbortsResponder();
 void TestStage6MalformedPhase2ResponseProofPayloadAbortsInitiator();
 void TestStage4Phase2InitUsesResponderOwnedAuxParams();

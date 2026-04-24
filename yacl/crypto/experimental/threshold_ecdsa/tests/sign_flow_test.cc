@@ -26,8 +26,6 @@ int main() {
     TestStage6SignConstructorRejectsInvalidKeygenProofArtifacts();
     TestStage6SignConstructorRejectsSignerCountMismatch();
     TestStage6FinalizePreservesRawHighS();
-    TestStage6ProtocolSignCompatibilityAlias();
-    TestStageCProtocolProofCompatibilityAlias();
     TestStage6MalformedPhase2InitProofPayloadAbortsResponder();
     TestStage6MalformedPhase2ResponseProofPayloadAbortsInitiator();
     TestStage4Phase2InitUsesResponderOwnedAuxParams();

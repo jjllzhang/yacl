@@ -41,16 +41,20 @@ TSIG_COMPAT_HDRS = glob([
 
 TSIG_ECDSA_SRCS = glob([
     "ecdsa/**/*.cc",
-]) + [
+])
+
+TSIG_ECDSA_HDRS = glob([
+    "ecdsa/**/*.h",
+])
+
+TSIG_PROTO_COMPAT_SRCS = [
     "protocol/proto_common.cc",
     "crypto/ecdsa_verify.cc",
     "protocol/keygen.cc",
     "protocol/sign.cc",
 ]
 
-TSIG_ECDSA_HDRS = glob([
-    "ecdsa/**/*.h",
-]) + [
+TSIG_PROTO_COMPAT_HDRS = [
     "crypto/ecdsa_verify.h",
     "protocol/messages.h",
     "protocol/keygen.h",
@@ -98,6 +102,17 @@ yacl_cc_library(
 )
 
 yacl_cc_library(
+    name = "tsig_proto_compat",
+    srcs = TSIG_PROTO_COMPAT_SRCS,
+    hdrs = TSIG_PROTO_COMPAT_HDRS,
+    copts = TECDSA_COPTS,
+    deps = [
+        ":tsig_compat",
+        ":tsig_ecdsa",
+    ],
+)
+
+yacl_cc_library(
     name = "tsig_sm2",
     srcs = glob([
         "sm2/**/*.cc",
@@ -114,7 +129,7 @@ yacl_cc_library(
 
 alias(
     name = "tecdsa_core",
-    actual = ":tsig_ecdsa",
+    actual = ":tsig_proto_compat",
 )
 
 alias(
@@ -127,7 +142,7 @@ yacl_cc_binary(
     srcs = ["tests/crypto_primitives_test.cc"],
     copts = TECDSA_COPTS,
     deps = [
-        ":tecdsa_core",
+        ":tsig_proto_compat",
         ":tsig_sm2",
     ],
 )
@@ -140,7 +155,7 @@ yacl_cc_binary(
         "tests/sign_flow_test_support.cc",
     ],
     copts = TECDSA_COPTS,
-    deps = [":tecdsa_core"],
+    deps = [":tsig_ecdsa"],
 )
 
 yacl_cc_binary(
@@ -152,7 +167,14 @@ yacl_cc_binary(
         "tests/sign_flow_test_support.cc",
     ],
     copts = TECDSA_COPTS,
-    deps = [":tecdsa_core"],
+    deps = [":tsig_ecdsa"],
+)
+
+yacl_cc_binary(
+    name = "compatibility_tests",
+    srcs = ["tests/compatibility_test.cc"],
+    copts = TECDSA_COPTS,
+    deps = [":tsig_proto_compat"],
 )
 
 yacl_cc_binary(
